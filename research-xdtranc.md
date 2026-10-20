@@ -9,7 +9,7 @@
 ## 执行摘要
 
 1. **优先完成 C++ → 仓颉 MVP**：围绕限定 C++ 子集，建立「解析/切分 → 转换 → 编译验证 → 修复 → 测试」闭环，先打通有代表性的小型多文件项目，再逐步扩大覆盖范围。
-2. **AI 助手首选 DeepWorks，次选其他付费助手**：优先使用 DeepWorks 完成需求整理、代码实现、测试、排障与文档维护；根据实际效果、可用性及预算，按需选用其他付费 AI 编程助手。产品运行时的模型 API 单独评估。
+2. **AI 助手首选 DeepWorks，次选其他付费助手**：优先使用 DeepWorks 完成需求整理、代码实现、测试、排障与文档维护；根据实际效果、可用性及预算，按需选用其他付费 AI 编程助手。产品内核 LLM 由用户自选（候选：DeepSeek-V4-Flash / DeepSeek-V4.1-Flash / DeepSeek-V4-Pro / Deepexi-E-Pro-2.0 / GLM-5.3 / GLM-5.3-Flash / Kimi-K3 等），默认 DeepSeek-V4-Flash（免费有限额）起步。
 3. **仓颉工具链与迁移方法可作为技术基础**：以 cjc 和所选 SDK 的官方文档为转换依据，结合规则、静态分析和 LLM 辅助生成。J2CJ（Java → 仓颉）适合作为相邻迁移方向的参考，具体效果需结合任务与样本判断。
 4. **验收以真实编译和行为测试为依据**：记录原始 C++ 项目与仓颉产物的构建、运行及对比结果，区分静态检查、真实编译和语义验证；企业代码使用云端服务前须确认授权与数据政策。
 
@@ -51,7 +51,7 @@
 | 次选 | Claude Code 等付费编程助手 | 复杂代码修改、命令行开发与问题排查 | 按实际套餐、用量及服务条款确认 | 在出现明确阻塞或有补充需求时评估 |
 | 次选 | Cursor、GitHub Copilot 等付费编程助手 | IDE 内代码编辑、补全和辅助开发 | 按实际付费套餐及额度确认 | 结合团队习惯、效果与预算选择 |
 
-DeepWorks 是开发助手应用，模型 API 是产品运行时可能调用的服务，两者分别选型。使用助手辅助开发与获得产品可调用的 API 权限属于不同事项；助手订阅费、API 费用及第三方服务费用分别核算。
+DeepWorks 既是开发助手应用，也是产品内核 LLM 的模型来源；开发助手与产品运行时使用同一候选池但目的不同，助手订阅费、API 费用及第三方服务费用分别核算。产品内核 LLM 由用户自选，候选即 DeepWorks 可用模型（DeepSeek-V4-Flash / DeepSeek-V4.1-Flash / DeepSeek-V4-Pro / Deepexi-E-Pro-2.0 / GLM-5.3 / GLM-5.3-Flash / Kimi-K3 等），默认 DeepSeek-V4-Flash（免费有限额）起步，用户可按效果与额度切换。
 
 ### 云端 API
 
@@ -84,7 +84,7 @@ DeepWorks 是开发助手应用，模型 API 是产品运行时可能调用的�
 
 ### 对课题启示
 - **助手优先级**：开发阶段首选 DeepWorks，次选其他需要付费的 AI 助手，围绕完成 MVP 安排投入。
-- **运行时模型选型**：通过独立 Provider 接口按需接入，以相同 C++ → 仓颉样例对比首轮编译通过率、固定预算修复后的通过率、行为测试结果、延迟与费用。
+- **运行时模型选型**：产品内核 LLM 用户自选（候选：DeepSeek-V4-Flash / DeepSeek-V4.1-Flash / DeepSeek-V4-Pro / Deepexi-E-Pro-2.0 / GLM-5.3 / GLM-5.3-Flash / Kimi-K3 等），默认 DeepSeek-V4-Flash（免费有限额）；以相同 C++ → 仓颉样例对比各候选首轮编译通过率、固定预算修复后的通过率、行为测试结果、延迟与费用，支撑用户选择；额度或精度不足时切换其他候选。
 - **成本估算**：按实际 token 用量计算。若单价单位为每百万 token，则成本 = 未缓存输入量/10^6 × 输入单价 + 缓存输入量/10^6 × 缓存单价 + 输出量/10^6 × 输出单价 + 其他计费项；服务不区分缓存时合并输入项。
 - **预算安排**：代码行数不能直接推导 token 消耗。先测小样例，记录上下文、编译日志及重试开销，再估算规模化成本；助手订阅、计算资源和人工修复费用另计。
 
@@ -136,7 +136,7 @@ DeepWorks 是开发助手应用，模型 API 是产品运行时可能调用的�
 | 仓颉 SDK、文档与构建环境 | 确认版本、平台、语言规则及多文件包组织，完成最小构建实验 | 影响 MVP 真实编译验证（高） |
 | C++ 支持子集与验收样例 | 固定可构建的原项目、依赖及输入输出，列出不支持结构 | 影响转换范围和验收（高） |
 | C++ 与仓颉语义映射 | 重点验证类型、指针/引用、资源生命周期、容器和异常 | 影响转换正确性（高） |
-| DeepWorks 与付费备选助手 | 确认实际能力、额度、费用及模型服务配置 | 影响开发效率与成本（中） |
+| DeepWorks 候选模型清单与额度 | 确认各候选模型（DeepSeek-V4-Flash / V4.1-Flash / V4-Pro / Deepexi-E-Pro-2.0 / GLM-5.3 / GLM-5.3-Flash / Kimi-K3 等）的实际能力、额度与费用细则 | 影响开发效率与成本（中） |
 | 运行时 API 的型号与价格 | 接入时核对官方模型 ID、定价、上下文和调用权限 | 影响模型选型与预算（中） |
 | 数据训练、保留与 ZDR 条款 | 核对账户、接口、代理及合同层面的实际约束 | 影响企业代码合规（高） |
 | 论文与开源工具资料 | 补齐一手来源、许可证、维护状态与实验条件 | 影响技术借鉴的可靠性（中） |
@@ -160,12 +160,12 @@ DeepWorks 是开发助手应用，模型 API 是产品运行时可能调用的�
 - Stage: research
 - App name: XDtranC
 - User level: B（developer，新手团队）
-- Target platform: 开发工具（MVP 优先命令行，可提供轻量本地 Web 输入输出界面）
+- Target platform: 开发工具（MVP：桌面工作台输入/输出界面 + 命令行能力；最终形态桌面/命令行/IDE 插件待 Part 3 定）
 - Budget: 待确认；分别核算助手订阅、模型 API、计算资源与人工成本
 - Timeline: 以确认后的阶段计划与课题结项要求为准
 - AI in product scope: yes（规则/静态分析结合 LLM 辅助转换与修复，API 接入独立确认）
 - Research status: Partial research（仓颉生态 / AI 助手与模型选型 / 论文与开源工具；缺口见「待核实清单」）
 - Constraints: MVP 聚焦限定 C++ 子集 → 仓颉；真实编译与行为测试；不支持项显式报告；企业代码授权与数据合规；最终多语言及规模指标按正式任务书确认
-- Decisions: 先完成 C++ → 仓颉 MVP；AI 开发助手首选 DeepWorks，次选其他付费助手；文件名主干 XDtranC；运行时模型通过独立 Provider 接口按需接入
-- Open questions: SDK 与包组织；C++ 支持范围与验收样例；运行时 API 与数据政策；最终多语言范围、项目规模及验收指标
-- Source files: research-xdtranc(1)-2.md → docs/research-xdtranc-revised.md
+- Decisions: 先完成 C++ → 仓颉 MVP；AI 开发助手首选 DeepWorks，次选其他付费助手；文件名主干 XDtranC；产品内核 LLM 用户自选（候选：DeepSeek-V4-Flash / V4.1-Flash / V4-Pro / Deepexi-E-Pro-2.0 / GLM-5.3 / GLM-5.3-Flash / Kimi-K3 等），默认 DeepSeek-V4-Flash（免费有限额）
+- Open questions: SDK 与包组织；C++ 支持范围与验收样例；候选模型完整清单与额度细则；数据训练/保留/ZDR 条款；最终多语言范围、项目规模及验收指标
+- Source files: research-xdtranc.md → docs/research-xdtranc.md
