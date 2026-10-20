@@ -1,135 +1,131 @@
 ## 深度研究报告：XDtranC（跨语言项目级源码转换工具）
 
-**Research status: Partial research** —— 基于 2026-10-15 三要点定向事实核查（仓颉生态 / 大模型 API 型号与定价 / 最新论文与开源工具）。已核实要点均附来源 URL 与访问日期；未覆盖或无法核实项见文末「待核实清单」。价格、版本、功能以官方页面为准，易变信息建议发布前复核。
+**Research status: Partial research** —— 围绕仓颉生态、AI 助手与模型选型、论文与开源工具展开研究。当前目标为完成 **C++ → 仓颉 MVP**；价格、版本、论文信息与商业案例的证据缺口见文末「待核实清单」。
 
-> 本报告由「定向事实核查提示词」在带联网搜索的 AI 工具中运行产生（核查日期 2026-10-15），并整理为本课题 findings 底稿。可靠性标注沿用核查结果：官方 / 官方+百科 / 社区确认 / 未获取。
+> 本报告作为课题 findings 底稿，资料入口供后续查证使用。厂商价格、版本和服务条款以接入时的官方信息为准；表中“待核实”表示尚未完成独立核验，访问日期不作推定。
 
 ---
 
 ## 执行摘要
 
-1. **仓颉生态已就绪，且有直接竞品/借鉴对象**：仓颉 1.0.0 LTS 已于 2025 年 7 月正式发布并开源（Apache 2.0），官方工具链（cjc 编译器、CJPM 包管理、VSCode/DevEco 插件）完备。**J2CJ（Java→仓颉）**已商用，案例转化率 85%–97.5%——证明「Java 系→仓颉」项目级转换在商业上可行，同时是本课题最重要的对标对象。
-2. **模型选择跨度极大，成本差两个数量级**：云端从 DeepSeek flash（输入 $0.15/M）到 OpenAI GPT-6 Astra（$10/M）、Anthropic Opus 5.5（$4/M）；本地可用 Qwen2.5-Coder-14B/32B（12–25GB 显存）。对"高精度转译+多轮纠错"场景，选型需在精度、成本、数据合规间权衡。
-3. **学术与开源方法齐全，可直接映射到 MVP 流水线**：切分（Context as a Tool、Prometheus 知识图谱）、转换（ExeCoder、BabelCoder）、修复（TSAPR、SemAgent、llvm-autofix）、迁移工具（Crane、block/ai-migrate、Konveyor Kai）分别对应 MVP 的解析/切分/生成/编译验证/修复/测试环节。
-4. **数据合规是硬约束**：OpenAI/Anthropic/Google 均有零保留（ZDR）或企业不训练保证；DeepSeek 与国内厂商的 API 训练策略未在公开页明确承诺——企业代码不得用于训练时，需商务确认或走本地部署。
+1. **优先完成 C++ → 仓颉 MVP**：围绕限定 C++ 子集，建立「解析/切分 → 转换 → 编译验证 → 修复 → 测试」闭环，先打通有代表性的小型多文件项目，再逐步扩大覆盖范围。
+2. **AI 助手首选 DeepWorks，次选其他付费助手**：优先使用 DeepWorks 完成需求整理、代码实现、测试、排障与文档维护；根据实际效果、可用性及预算，按需选用其他付费 AI 编程助手。产品运行时的模型 API 单独评估。
+3. **仓颉工具链与迁移方法可作为技术基础**：以 cjc 和所选 SDK 的官方文档为转换依据，结合规则、静态分析和 LLM 辅助生成。J2CJ（Java → 仓颉）适合作为相邻迁移方向的参考，具体效果需结合任务与样本判断。
+4. **验收以真实编译和行为测试为依据**：记录原始 C++ 项目与仓颉产物的构建、运行及对比结果，区分静态检查、真实编译和语义验证；企业代码使用云端服务前须确认授权与数据政策。
 
 ---
 
-## 核查点一：仓颉（Cangjie）生态现状（已核实）
+## 核查点一：仓颉（Cangjie）生态现状
 
-| 核查项 | 查证结果 | 来源 URL | 访问日期 | 可靠性 |
+| 核查项 | 研究内容 | 来源 URL | 访问日期 | 可靠性 |
 |---|---|---|---|---|
-| 官网 | https://cangjie-lang.cn | 官网 | 2026-10-15 | 官方 |
-| 官方文档 | 开发指南、API、工具指南、版本说明书、语言规约 | https://cangjie-lang.cn/docs | 2026-10-15 | 官方 |
-| 当前版本 | LTS: 1.0.5；STS: 1.2.0（2026/09/22 发布）；另有 1.1.3 STS、1.1.0-beta.23 | https://cangjie-lang.cn/download/1.1.0-beta.23 | 2026-10-15 | 官方 |
-| 发布状态 | 已正式发布：1.0.0 LTS 于 2025 年 7 月发布，达生产部署标准；2025-07-30 开源（编译器、运行时、标准库） | https://cangjie-lang.cn/download/1.1.0-beta.23；百度百科 | 2026-10-15 | 官方+百科 |
-| 许可证 | Apache 2.0（允许商业用途、修改与再分发） | https://post.smzdm.com（社区确认） | 2026-10-15 | 社区确认（官方文档页未直接展示） |
-| **跨语言转换工具** | **J2CJ：Java→仓颉源码转换工具，基于编译技术**；安卓逻辑代码转化率 >85%，迁移效率提升 4–5 倍；商用案例：工行 Calendar 1200 行/85%、美团 DSL Engine 2859 行/97.5%、宝兰德 Business Logic 4000 行/89.9% | https://gitcode.com/Cangjie-SIG/j2cj/releases | 2026-10-15 | 官方 GitCode 仓库+Workshop 材料 |
-| IDE/语言服务 | VSCode 插件（cangjie-vscode）、DevEco Studio 插件（官方提供） | https://cangjie-lang.cn/download/1.1.0-beta.23；https://docs.cangjie-lang.cn | 2026-10-15 | 官方 |
-| 包管理 | CJPM（Cangjie Package Manager）：模块系统、依赖解析、构建与测试 | https://docs.cangjie-lang.cn | 2026-10-15 | 官方 |
-| 工具链 | cjc（编译器）、cjfmt（格式化）、语言服务、调试、性能分析、Mock、测试框架、覆盖率、Fuzz | https://cangjie-lang.cn/docs | 2026-10-15 | 官方 |
-| 类型系统/语言特性 | 多范式（函数式+命令式+OOP）、值类型、类/接口、泛型、代数数据类型、模式匹配、高阶函数、类型推断、宏 | 百度百科；https://cangjie-lang.cn/docs | 2026-10-15 | 官方+百科 |
-| 并发模型 | 轻量线程模型 + 全并发 GC；支持 spawn 表达式 | 百度百科（官方白皮书更详细） | 2026-10-15 | 百科 |
-| 与 Java/C++ 差异权威资料 | **未找到专门对比文档**；建议参考官方白皮书 + 语言规约自行对比 | https://cangjie-lang.cn/docs | 2026-10-15 | 官方（差异对比文档缺失） |
-| 新手学习资源 | 官方：在线体验、开发指南、学习资源、示例代码、中心仓；VSCode 插件；社区：GitCode 社区、CLA 社区看板、Cangjie-TPC、Cangjie-SIG | https://cangjie-lang.cn/docs | 2026-10-15 | 官方 |
+| 官网 | 仓颉语言与工具链信息入口 | https://cangjie-lang.cn | — | 官方入口，内容待核实 |
+| 官方文档 | 开发指南、API、工具指南、版本说明和语言规约 | https://cangjie-lang.cn/docs | — | 官方入口，按 SDK 版本核对 |
+| 当前版本 | 实施时固定可安装、可执行的 SDK 版本，并记录版本号与平台 | https://cangjie-lang.cn | — | 版本待核实 |
+| 发布状态 | 核对所选版本的发布说明、平台支持及已知限制 | https://cangjie-lang.cn | — | 待核实 |
+| 许可证 | 分别核对编译器、运行时、标准库及插件的 LICENSE | 对应官方仓库 LICENSE | — | 待核实 |
+| **跨语言转换工具** | **J2CJ：Java → 仓颉迁移方向参考**；功能范围、案例和效果口径需查阅项目资料 | https://gitcode.com/Cangjie-SIG/j2cj/releases | — | 项目资料待核实 |
+| IDE/语言服务 | 评估 VS Code、DevEco Studio 相关插件的版本兼容与平台支持 | https://cangjie-lang.cn/docs | — | 待核实 |
+| 包管理 | CJPM：结合所选 SDK 确认包结构、依赖、构建和测试方式 | https://cangjie-lang.cn/docs | — | 具体用法待验证 |
+| 工具链 | cjc 用于真实编译；格式化、调试、测试等能力按需要接入 | https://cangjie-lang.cn/docs | — | 本地环境待验证 |
+| 类型系统/语言特性 | 重点核对基础类型、类、接口、泛型、模式匹配与错误处理语义 | https://cangjie-lang.cn/docs | — | 以对应版本语言规约为准 |
+| 并发与内存管理 | 核对线程、垃圾回收和资源释放机制；复杂并发迁移作为后续扩展 | https://cangjie-lang.cn/docs | — | 具体语义待核实 |
+| 与 C++ 差异资料 | 建立类型、指针/引用、对象生命周期、容器和异常的映射表 | https://cangjie-lang.cn/docs | — | 需结合 C++ 语义与实验整理 |
+| 新手学习资源 | 优先使用官方开发指南、示例和标准库文档 | https://cangjie-lang.cn/docs | — | 按所选版本筛选 |
 
 ### 对课题启示
-- **J2CJ 是核心对标**：其「基于编译技术 + 高转化率（85%+）」说明 Java→仓颉转换的商业路线已被验证；本课题 MVP 做 Java→C++，后续推广 ArkTS→仓颉，需回答差异化：C++ 目标语言 + **LLM 驱动迭代纠错闭环**（J2CJ 未披露是否用 LLM）。
-- 仓颉工具链完整（cjc/CJPM/插件），转换产物的**编译验证环节**可直接用官方工具链落地。
-- Apache 2.0 开源意味着可基于官方编译器/标准库做深度适配与检索增强素材。
+- **MVP 聚焦 C++ → 仓颉**：优先支持基础类型、函数、条件、循环、简单类及明确映射的字符串和容器操作；复杂模板、指针别名、手动内存管理、平台 API 和大型第三方库逐步扩展。
+- **J2CJ 是相邻方向的学习对象**：可以借鉴仓颉项目组织与迁移流程；不同源语言、测试样本和统计口径下的转化率需分别评估。
+- **编译验证直接面向目标工具链**：正确生成 package、import 与构建配置，记录 SDK 版本、命令、退出码及诊断。静态检查用于前置排错，真实 cjc 编译用于构建验收。
+- **不支持项显式报告**：保留源位置和失败原因，避免通过删除或注释业务逻辑获得表面上的编译通过。
 
 ---
 
-## 核查点二：大模型 API 当前型号与定价（2026 年现状，已核实）
+## 核查点二：AI 助手与大模型 API 选型
+
+### AI 助手
+
+| 优先级 | 工具 | 使用场景 | 成本与接入 | 选择依据 |
+|---|---|---|---|---|
+| **首选** | **DeepWorks** | 需求整理、代码实现、测试、排障、文件操作与文档维护 | 按当前账户、模型配置及实际额度确认 | 优先利用现有工作区完成 MVP |
+| 次选 | Claude Code 等付费编程助手 | 复杂代码修改、命令行开发与问题排查 | 按实际套餐、用量及服务条款确认 | 在出现明确阻塞或有补充需求时评估 |
+| 次选 | Cursor、GitHub Copilot 等付费编程助手 | IDE 内代码编辑、补全和辅助开发 | 按实际付费套餐及额度确认 | 结合团队习惯、效果与预算选择 |
+
+DeepWorks 是开发助手应用，模型 API 是产品运行时可能调用的服务，两者分别选型。使用助手辅助开发与获得产品可调用的 API 权限属于不同事项；助手订阅费、API 费用及第三方服务费用分别核算。
 
 ### 云端 API
 
-| 模型 | 主力型号 | 输入价 | 输出价 | 上下文 | 数据训练策略 | 来源 URL | 访问日期 |
+| 服务商 | 候选模型 | 输入价 | 输出价 | 上下文 | 数据训练策略 | 来源 URL | 访问日期 |
 |---|---|---|---|---|---|---|---|
-| DeepSeek | deepseek-flash（V4.1-Flash） | 缓存未命中 $0.15/M（空闲）$0.3/M（高峰）；命中 $0.003–0.006/M | $0.6/M（空闲）$1.2/M（高峰） | 1M | 条款允许去标识化后优化服务；2026-04 版协议未明确承诺 API 数据不用于训练，需关注最新条款 | https://api-docs.deepseek.com/quick_start/pricing/ | 2026-10-15 |
-| DeepSeek | deepseek-v4-pro | 未命中 $0.66/M（空闲）$1.32/M（高峰）；命中 $0.022–0.044/M | $1.98/M（空闲）$3.96/M（高峰） | 1M | 同上 | https://api-docs.deepseek.com/quick_start/pricing/ | 2026-10-15 |
-| OpenAI | GPT-6 Astra（旗舰） | $10.00/M | $50.00/M | 短上下文（<272K） | 企业默认不用于训练（除非明确 opt-in）；提供 ZDR（零数据保留）+ Private Safety Processing | https://developers.openai.com/api/docs/pricing | 2026-10-15 |
-| OpenAI | GPT-6 Sol（平衡） | $2.00/M | $10.00/M | 短上下文 | 同上 | 同上 | 2026-10-15 |
-| OpenAI | GPT-6 Luna（低成本） | $0.10/M | $0.50/M | 短上下文 | 同上 | 同上 | 2026-10-15 |
-| Anthropic | Claude Opus 5.5 | $4/M | $20/M | 1M（最大输出 12.8 万） | 默认不在商业产品中用于训练；ZDR 仅 API；未经许可保留数据不用于训练 | https://platform.claude.com/docs/en/models/opus-5-5/overview | 2026-10-15 |
-| Anthropic | Claude Sonnet 5.5 | $2/M | $10/M | 1M（同上） | 同上 | https://platform.claude.com/docs/en/models/opus-5-5/overview | 2026-10-15 |
-| Anthropic | Claude Haiku 5.5 | $0.10/M 起 | $0.50/M 起 | 1M（同上） | 同上 | https://platform.claude.com/docs/en/models/haiku-5-5/overview | 2026-10-15 |
-| Google | Gemini 4 Argon（旗舰） | $2.00/M（2026-11-30 前限时价，之后 $4.00） | $10.00/M（限时价，之后 $20.00） | 1M | 付费层级内容不用于改进产品；企业版合约级不训练保证 + ZDR；免费层数据用于改进 | https://ai.google.dev/gemini-api/docs/pricing | 2026-10-15 |
-| 通义千问 | Qwen3.8-Max | ¥12/M | ¥36/M | 百万级 | 未查到明确 API 训练策略页 | https://www.alibabacloud.com/help/zh/model-studio/model-pricing | 2026-10-15 |
-| 通义千问 | Qwen3.8-Flash | ¥0.8/M | ¥2.7/M | 1M | 同上 | https://platform.qianwenai.com | 2026-10-15 |
-| 豆包 | Doubao-Seed-2.1-Pro | ¥6/M | ¥30/M | 256K | 未查到明确 API 训练策略页 | https://docs.volcengine.com/docs/ark/model-pricing | 2026-10-15 |
-| 豆包 | Doubao-Seed-2.1-Turbo | ¥3/M | ¥15/M | 256K | 同上 | 同上 | 2026-10-15 |
-| 智谱 GLM | — | 未找到 2026 年最新定价页 | — | — | — | — | — |
-| Kimi | — | 未找到 2026 年最新定价页 | — | — | — | — | — |
+| DeepSeek | 以接入时可用模型为准 | 待核实 | 待核实 | 按型号核实 | 按 API 协议、账户及合同确认 | https://api-docs.deepseek.com | — |
+| OpenAI | 以接入时可用模型为准 | 待核实 | 待核实 | 按型号核实 | 按 API 协议、账户及合同确认 | https://platform.openai.com/docs | — |
+| Anthropic | 以接入时可用模型为准 | 待核实 | 待核实 | 按型号核实 | 按 API 协议、账户及合同确认 | https://www.anthropic.com | — |
+| Google | 以接入时可用模型为准 | 待核实 | 待核实 | 按型号核实 | 区分免费、付费及企业服务条款 | https://ai.google.dev/gemini-api/docs/pricing | — |
+| 通义千问 | 以接入时可用模型为准 | 待核实 | 待核实 | 按型号核实 | 按 API 协议、账户及合同确认 | https://www.alibabacloud.com/help/zh/model-studio/model-pricing | — |
+| 豆包 | 以接入时可用模型为准 | 待核实 | 待核实 | 按型号核实 | 按 API 协议、账户及合同确认 | https://www.volcengine.com | — |
+| 智谱 GLM / Kimi | 按实际需求补充候选型号 | 待核实 | 待核实 | 按型号核实 | 按具体服务协议确认 | 待补充 | — |
 
 ### 本地开源模型
 
 | 模型 | 版本 | 显存需求 | 来源 | 访问日期 |
 |---|---|---|---|---|
-| Qwen2.5-Coder-3B/7B | Qwen2.5-Coder | 16GB+（T4/P100/V100 及以上） | https://www.alibabacloud.com | 2026-10-15 |
-| Qwen2.5-Coder-14B | Qwen2.5-Coder | Q4_K_M 约 8.5–9GB（12GB 卡可跑）；24GB 显存（A10 及以上） | https://evezone.evetech.co.za；https://www.alibabacloud.com | 2026-10-15 |
-| Qwen2.5-Coder-32B | Qwen2.5-Coder | Q4_K_M 约 20–22GB，建议 20–25GB 显存 | https://evezone.evetech.co.za | 2026-10-15 |
-| DeepSeek-Coder-6.7B | DeepSeek-Coder | 量化 8–12GB；全精度 16GB+ | https://github.com/deepseek-ai/DeepSeek-Coder/issues/664 | 2026-10-15 |
-| DeepSeek-Coder-33B | DeepSeek-Coder | 4-bit 量化 24–32GB；FP16 约 66GB | 同上；https://news.qiniu.com | 2026-10-15 |
-| DeepSeek-Coder-V2-Lite (16B) | V2 Lite | Q4 约 9.5GB | https://dev.to | 2026-10-15 |
+| Qwen2.5-Coder | 3B/7B/14B/32B 等候选规格 | 随精度、量化、上下文和并发变化，需实测 | https://github.com/QwenLM/Qwen2.5-Coder | — |
+| DeepSeek-Coder | 按任务选择候选规格 | 权重、KV cache 与推理框架共同决定总显存 | https://github.com/deepseek-ai/DeepSeek-Coder | — |
+| DeepSeek-Coder-V2 | 按模型卡确认具体版本 | 按部署方式和上下文长度实测 | https://github.com/deepseek-ai/DeepSeek-Coder-V2 | — |
+
+本地部署适用于明确的离线或数据隔离要求，需同时评估模型许可证、设备成本、推理速度和转换效果。量化权重大小仅是运行内存的一部分。
 
 ### 数据合规要点（企业代码不得用于训练）
-- OpenAI：企业数据默认不训练（除非明确选择加入）+ ZDR 服务 + Private Safety Processing（预览）。
-- Anthropic：ZDR 协议（仅 API）；部分模型要求 30 天数据保留。
-- Google：付费层级不用于改进产品；企业版合约级不训练保证 + ZDR。
-- **DeepSeek 与国内厂商：公开定价页未明确披露 API 数据训练策略——需联系商务获取合规承诺，或选择本地部署。**
-- 具体配置参数（API 参数/Header/合同条款）需查阅各厂商企业版接入文档。
+- 上传源码前确认授权，优先使用公开、授权或脱敏样例进行验证。
+- 分别核对训练用途、日志保留、存储地域与访问权限；**不用于训练与零数据保留（ZDR）是不同承诺**。
+- ZDR 的可用范围取决于服务、账户、接口和合同，须确认实际开通状态。
+- 使用 DeepWorks 或其他助手时，确认实际调用的模型服务及数据去向；第三方代理与上游服务的政策均需检查。
+- 数据政策不明确时，获取书面确认或评估本地部署；密钥和敏感日志应与代码、公开报告隔离。
 
 ### 对课题启示
-- **成本量级对比**：假设一个 2k 行项目转换 + 3 轮纠错迭代，输入≈输出≈百万 token 级；用 deepseek-flash 成本约 $0.3–1.2，用 GPT-6 Astra 约 $10–50，Opus 5.5 约 $4–20——**量级差一个数量级以上**。新手团队 MVP 阶段优先低成本模型验证流程，精度不足再升级。
-- **数据合规**：华为课题若用云端 API，首选带 ZDR/不训练承诺的厂商（OpenAI/Anthropic/Google 企业版）或本地部署（Qwen2.5-Coder-14B/32B 显存门槛 12–25GB，可行）。
-- **本地模型可行性**：Q4 量化 14B 约 9GB、32B 约 20–22GB——单卡可跑，适合"代码不落云"的场景；代价是转换精度与速度低于云端旗舰。
+- **助手优先级**：开发阶段首选 DeepWorks，次选其他需要付费的 AI 助手，围绕完成 MVP 安排投入。
+- **运行时模型选型**：通过独立 Provider 接口按需接入，以相同 C++ → 仓颉样例对比首轮编译通过率、固定预算修复后的通过率、行为测试结果、延迟与费用。
+- **成本估算**：按实际 token 用量计算。若单价单位为每百万 token，则成本 = 未缓存输入量/10^6 × 输入单价 + 缓存输入量/10^6 × 缓存单价 + 输出量/10^6 × 输出单价 + 其他计费项；服务不区分缓存时合并输入项。
+- **预算安排**：代码行数不能直接推导 token 消耗。先测小样例，记录上下文、编译日志及重试开销，再估算规模化成本；助手订阅、计算资源和人工修复费用另计。
 
 ---
 
-## 核查点三：最新论文与开源工具（2024–2026，已核实清单）
+## 核查点三：论文与开源工具
 
 ### 学术论文
 
-| 类别 | 名称 | 一句话说明 | 链接 | 引用量 | 访问日期 |
+以下为研究线索，题名、编号、任务设置与实验结果需结合论文原文确认。方法选型以能否服务于当前转换闭环为依据。
+
+| 类别 | 名称 | 关注方向 | 链接 | 引用量 | 核验状态 |
 |---|---|---|---|---|---|
-| 代码翻译 | BabelCoder: Agentic Code Translation with Specification Alignment | 多智能体代码翻译框架，翻译任务分解为翻译、测试等专门 Agent | arXiv:2512.06902 | 未获取 | 2026-10-15 |
-| 代码翻译 | EffiReasonTrans: RL-Optimized Reasoning for Code Translation | 推理增强数据集 + 强化学习提升翻译准确性、降低推理延迟 | arXiv:2510.18863 | 未获取 | 2026-10-15 |
-| 代码翻译 | ExeCoder: Empowering LLMs with Executability Representation | 可执行性表示增强 LLM 代码翻译能力 | arXiv（v1: 2025-01-30, v3: 2025-09-27） | 未获取 | 2026-10-15 |
-| 大代码库上下文 | Context as a Tool: Context Management for Long-Horizon SWE-Agents | 上下文维护提升为可调用工具，解决仓库级长程交互 | arXiv:2512.22087 | 未获取 | 2026-10-15 |
-| 大代码库上下文 | Prometheus: Unified Knowledge Graphs for Issue Resolution in Multilingual Codebases | 统一知识图谱解决多语言代码库问题 | arXiv:2507.19942 | 未获取 | 2026-10-15 |
-| 大代码库上下文 | FEA-Bench | 仓库级代码生成基准，评估 LLM 特征实现能力 | arXiv | 未获取 | 2026-10-15 |
-| 自动程序修复 | RelRepair: Enhancing APR by Retrieving Relevant Code | 检索相关代码增强自动程序修复 | arXiv | 未获取 | 2026-10-15 |
-| 自动程序修复 | TSAPR: A Tree Search Framework For Automated Program Repair | 树搜索框架驱动的自动程序修复 | arXiv:2507.01827 | 未获取 | 2026-10-15 |
-| 自动程序修复 | SemAgent: A Semantics Aware Program Repair Agent | 语义感知的程序修复 Agent | arXiv:2506.16650 | 未获取 | 2026-10-15 |
-| 自动程序修复 | T³: Multi-level Tree-based APR with LLMs | 多级树结构自动程序修复 | arXiv:2506.21211 | 未获取 | 2026-10-15 |
-| 编译错误修复 | Agentic Harness for Real-World Compilers (llvm-autofix) | 面向 LLM Agent 的编译器 Bug 修复辅助框架 | arXiv | 未获取 | 2026-10-15 |
-| 编译错误修复 | CompileAgent | 工具集成 LLM Agent 系统，仓库级编译 | 2025 年发表 | 未获取 | 2026-10-15 |
-| 编译错误修复 | Byam | 修复依赖更新导致的编译错误 | arXiv:2505.07522 | 未获取 | 2026-10-15 |
+| 代码翻译 | BabelCoder | 任务拆分、规格对齐与测试反馈 | 待核实论文原文 | 未获取 | 待核实 |
+| 代码翻译 | EffiReasonTrans | 代码翻译的推理质量与效率 | 待核实论文原文 | 未获取 | 待核实 |
+| 代码翻译 | ExeCoder | 可执行性信息辅助代码翻译 | 待核实论文原文 | 未获取 | 待核实 |
+| 大代码库上下文 | Context as a Tool | 上下文管理与长程开发任务 | 待核实论文原文 | 未获取 | 待核实 |
+| 大代码库上下文 | Prometheus | 跨文件依赖及知识组织 | 待核实论文原文 | 未获取 | 待核实 |
+| 仓库级评测 | FEA-Bench | 仓库级任务的评估方法 | 待核实论文原文 | 未获取 | 待核实 |
+| 自动程序修复 | RelRepair、TSAPR、SemAgent、T³ | 检索、搜索与语义信息辅助修复 | 待核实论文原文 | 未获取 | 待核实 |
+| 编译相关修复 | llvm-autofix、CompileAgent、Byam | 区分编译器自身缺陷、项目构建及依赖变更错误 | 待核实论文原文 | 未获取 | 待核实 |
 
 ### 开源项目
 
-| 类别 | 名称 | 一句话说明 | 链接 | Star | 访问日期 |
+| 类别 | 名称 | 一句话说明 | 链接 | Star | 核验状态 |
 |---|---|---|---|---|---|
-| Java→C++ 转译器 | j2cc | Java 字节码→C++ 转译器与混淆器（JNI） | https://github.com/0x3C50/j2cc | ~81 | 2026-10-15 |
-| Java→C++ 转译器 | clearwing-vm | 基于 CodenameOne Parpar VM 的 Java→C++ 转译器 | https://github.com/SwitchGDX/clearwing-vm | ~39 | 2026-10-15 |
-| Java→C++ 转译器 | java-to-cpp-translator | 学生项目级 Java 子集→C++ 源码转译器 | https://github.com/guillaumebogaertGIT/java-to-cpp-translator | 未获取 | 2026-10-15 |
-| LLM 代码迁移 | block/ai-migrate | LLM 驱动大规模代码迁移，两阶段（Setup+Migration） | https://github.com/block/ai-migrate | 未获取 | 2026-10-15 |
-| LLM 代码迁移 | Konveyor AI (Kai) | 静态代码分析驱动的 LLM 迁移工具 | https://github.com/konveyor/kai | 未获取 | 2026-10-15 |
-| LLM 代码迁移 | janus-llm | LLM 遗留系统现代化，支持文件级语言翻译 | https://github.com/janus-llm/janus-llm | 未获取 | 2026-10-15 |
-| LLM 代码迁移 | Crane (GitHub Next) | 小步 Agent 式代码迁移助手：规划→执行→验证 | https://github.com/githubnext/crane | 未获取 | 2026-10-15 |
-| C/C++→Rust | Auto-RS | 基于 Claude Code SDK 的 C/C++→Rust 自动迁移 Agent | https://openatom.tech | 未获取 | 2026-10-15 |
-| 仓颉迁移 | **J2CJ** | **Java→仓颉源码转换工具（编译技术，转化率 >85%）** | https://gitcode.com/Cangjie-SIG/j2cj/releases | 未获取 | 2026-10-15 |
-| 仓颉迁移 | AtCH-explorer | Claude Code + 鸿蒙仓颉生态的 Android→仓颉智能迁移框架 | https://gitcode.com | 未获取 | 2026-10-15 |
+| C++ 解析与工具开发 | Clang/LibTooling | 用于 C++ 语法树、符号与源码分析的技术候选 | https://clang.llvm.org/docs/LibTooling.html | — | 接入方式与版本待验证 |
+| LLM 代码迁移 | block/ai-migrate | 研究迁移规划、执行与验证的工程组织方式 | https://github.com/block/ai-migrate | 未获取 | 功能与维护状态待核实 |
+| LLM 代码迁移 | Konveyor AI（Kai） | 研究静态分析与 LLM 结合的迁移流程 | https://github.com/konveyor/kai | 未获取 | 功能与维护状态待核实 |
+| LLM 代码迁移 | janus-llm | 研究文件级转换与遗留系统现代化方法 | https://github.com/janus-llm/janus-llm | 未获取 | 功能与维护状态待核实 |
+| LLM 代码迁移 | Crane（GitHub Next） | 研究小步规划、执行和验证的迁移方式 | https://github.com/githubnext/crane | 未获取 | 功能与维护状态待核实 |
+| 仓颉迁移 | **J2CJ** | **Java → 仓颉方向的项目组织与转换流程参考** | https://gitcode.com/Cangjie-SIG/j2cj/releases | 未获取 | 支持范围与案例待核实 |
 
 ### 对课题启示
-- **MVP 流水线可直接映射**：
-  - 切分/上下文 → Context as a Tool、Prometheus（知识图谱）
-  - 转换 → ExeCoder（可执行性表示）、BabelCoder（多智能体拆分）
-  - 编译验证/修复 → llvm-autofix（编译器修复 harness）、CompileAgent（仓库级编译）、TSAPR/SemAgent（树搜索/语义修复）
-  - 工程骨架 → Crane（规划→执行→验证小步迁移）、block/ai-migrate（Setup+Migration 两阶段）、Konveyor Kai（静态分析+LLM）
-- **J2CJ 是本课题直接竞品与学习对象**：其商用转化率数据（85%–97.5%）可作对标基准；本课题差异点是 LLM 驱动 + 迭代纠错闭环 + 目标语言 C++（先）与 ArkTS（后）。
-- **可借鉴的工程模式**：LLM 迁移工具普遍采用「规划→执行→验证」多阶段 + 工具集成（编译/测试为可调用工具），与课题的「切分→转换→编译验证→修复→测试」闭环一致，无需从零发明。
+- **MVP 流水线**：
+  - 解析/切分 → 识别 C++ 文件、包含关系、类型与符号，保留跨文件依赖；正则仅用于限定子集。
+  - 转换 → 规则处理确定性映射，LLM 按需辅助复杂转换，生成仓颉源码和必要的包配置。
+  - 编译验证/修复 → 使用固定版本的真实工具链，依据诊断迭代修复，限制轮数、时间和费用。
+  - 测试 → 对同一输入运行 C++ 与仓颉程序，比较输出、退出码及必要副作用，数值结果明确容差。
+- **先完成最小闭环**：多智能体、知识图谱和复杂检索作为后续优化，首版优先保证流程可运行、结果可复现、失败原因可解释。
+- **对标口径一致**：分别报告自动转换与人工修复后的结果；其他语言迁移案例的转化率仅作背景参考。
 
 ---
 
@@ -137,22 +133,25 @@
 
 | 项目 | 说明 | 影响 |
 |---|---|---|
-| 仓颉与 Java/C++ 差异对比的官方文档 | 未找到专门对比文档，需基于白皮书+语言规约自行整理 | 影响后续 ArkTS→仓颉迁移方案（中） |
-| 智谱 GLM / Kimi 2026 年最新 API 定价页 | 未找到 | 影响国内模型选型完整性（低） |
-| 通义/豆包/智谱/Kimi 的 API 数据训练策略 | 未查到官方明确承诺页 | 影响数据合规决策（高，建议联系商务或本地部署） |
-| 各厂商 ZDR/不训练的具体配置参数 | 未找到技术配置文档 | 影响企业接入落地（中） |
-| 部分论文引用量/GitHub Star | 较新论文数据不充分 | 影响优先级排序（低） |
-| 仓颉反向迁移工具（仓颉→其他语言） | 仅找到 Java→仓颉/Android→仓颉方向 | 不影响本课题（低） |
-| 部分来源可靠性 | smzdm 社区确认许可证、百度百科条目，建议以官方仓库 LICENSE 为准 | 影响证据强度（低） |
+| 仓颉 SDK、文档与构建环境 | 确认版本、平台、语言规则及多文件包组织，完成最小构建实验 | 影响 MVP 真实编译验证（高） |
+| C++ 支持子集与验收样例 | 固定可构建的原项目、依赖及输入输出，列出不支持结构 | 影响转换范围和验收（高） |
+| C++ 与仓颉语义映射 | 重点验证类型、指针/引用、资源生命周期、容器和异常 | 影响转换正确性（高） |
+| DeepWorks 与付费备选助手 | 确认实际能力、额度、费用及模型服务配置 | 影响开发效率与成本（中） |
+| 运行时 API 的型号与价格 | 接入时核对官方模型 ID、定价、上下文和调用权限 | 影响模型选型与预算（中） |
+| 数据训练、保留与 ZDR 条款 | 核对账户、接口、代理及合同层面的实际约束 | 影响企业代码合规（高） |
+| 论文与开源工具资料 | 补齐一手来源、许可证、维护状态与实验条件 | 影响技术借鉴的可靠性（中） |
+| J2CJ 功能与案例 | 核实任务范围、样本及转化率定义 | 影响对标结论（中） |
+| 最终课题要求 | 确认多语言范围、代码库数量、代码规模与最终验收指标；与阶段 MVP 分开管理 | 影响后续计划（高） |
 
 ---
 
 ## 关键结论与下一步建议
 
-1. **MVP（Java→C++）路线可行**：现成组件齐备——Java→C++ 转译器（j2cc/clearwing-vm，可作规则层借鉴）、LLM 迁移骨架（Crane/ai-migrate）、编译修复方法（llvm-autofix/TSAPR）。建议 MVP 走「规则/编译技术 + LLM 生成 + 编译验证纠错闭环」混合路线。
-2. **模型选型初步建议**：MVP 阶段用低成本模型（deepseek-flash 级别）验证流程；精度优化阶段对比 deepseek-v4-pro / Qwen 本地 14B/32B；若企业数据不落云，走本地部署。
-3. **对标 J2CJ 设定验收目标**：参考其商用案例转化率（85%+）与课题指标（编译错误 <15%、测试失败率 <20%），MVP 验收以课题指标为准。
-4. **下一步**：进入 Part 2（PRD）——基于本底稿 + Handoff Context 起草产品需求文档；或先补查「待核实清单」中的高风险项（国内厂商训练策略、ZDR 配置）。
+1. **MVP 目标是完成 C++ → 仓颉转换**：建议采用「规则/静态分析 + LLM 辅助生成 + 编译验证纠错」混合路线，先打通有代表性的多文件项目，再扩大 C++ 子集与样例覆盖。
+2. **AI 助手首选 DeepWorks，次选其他付费助手**：优先完成现有工作区内的实现与测试。产品需要自动调用模型时，另行确认 API、权限、费用与数据政策。
+3. **明确最小验收目标**：建议约定支持范围内的验收样例全部通过真实仓颉编译和行为测试，并分别记录首轮与修复后结果。工具自身的单元测试、静态检查和覆盖率用于验证工程质量，不能替代生成代码的行为验证。
+4. **统一指标口径**：编译通过率以参加验收的项目为分母；行为测试通过率以约定用例总数为分母，无法运行的用例应明确报告。人工修改量、未支持项、修复轮数和成本单独统计，有限测试结果不等于所有输入下的语义等价证明。
+5. **下一步**：完善 PRD 中的 C++ 支持范围、样例、SDK 版本和验收标准，随后推进实现、真实编译与行为对比。Java、ArkTS 等语言扩展及最终规模指标按正式任务书安排。
 
 ---
 
@@ -161,12 +160,12 @@
 - Stage: research
 - App name: XDtranC
 - User level: B（developer，新手团队）
-- Target platform: 开发工具（桌面/命令行/IDE 插件形态，MVP 含输入输出界面）
-- Budget: 华为企业课题标准（未指定上限，成本研究给出量级估算）
-- Timeline: 以华为课题结项要求为准
-- AI in product scope: yes（大模型驱动的代码转换与自动修复）
-- Research status: Partial research（2026-10-15 三要点定向核查底稿；缺口见「待核实清单」）
-- Constraints: MVP 仅 Java→C++；最终至少 3 种源语言（Java、ArkTS 必须）→ 仓颉；验证 5 个 ≥2k 行代码库；编译错误行占比 <15%；人工修复后测试失败率 <20%；华为企业数据合规；新手团队
-- Decisions: MVP 目标语言 C++（先验证流程，后推广到仓颉）；文件名主干 XDtranC；模型选型初步倾向低成本 API + 本地部署兜底（研究建议，待 PRD 确认）
-- Open questions: 国内厂商 API 训练策略与 ZDR 配置；仓颉 vs Java/C++ 官方对比文档；智谱/Kimi 定价；第 3 种源语言选择；Provider 是否限定本地部署
-- Source files: research-request-xdtranscoder.md → docs/research-xdtranc.md
+- Target platform: 开发工具（MVP 优先命令行，可提供轻量本地 Web 输入输出界面）
+- Budget: 待确认；分别核算助手订阅、模型 API、计算资源与人工成本
+- Timeline: 以确认后的阶段计划与课题结项要求为准
+- AI in product scope: yes（规则/静态分析结合 LLM 辅助转换与修复，API 接入独立确认）
+- Research status: Partial research（仓颉生态 / AI 助手与模型选型 / 论文与开源工具；缺口见「待核实清单」）
+- Constraints: MVP 聚焦限定 C++ 子集 → 仓颉；真实编译与行为测试；不支持项显式报告；企业代码授权与数据合规；最终多语言及规模指标按正式任务书确认
+- Decisions: 先完成 C++ → 仓颉 MVP；AI 开发助手首选 DeepWorks，次选其他付费助手；文件名主干 XDtranC；运行时模型通过独立 Provider 接口按需接入
+- Open questions: SDK 与包组织；C++ 支持范围与验收样例；运行时 API 与数据政策；最终多语言范围、项目规模及验收指标
+- Source files: research-xdtranc(1)-2.md → docs/research-xdtranc-revised.md
