@@ -62,3 +62,6 @@ Last verified: 2026-10（仅核对 Tech Design 文档，**未安装任何依赖�
 ## 不在技术栈内（避免被"补全架构"）
 
 账号体系、数据库/SQLite（P2 才评估）、HTTP/Express/Next 后端、云托管与 CI 云服务、cjc/CJPM/clang 工具链（本 MVP 不依赖，缺了不是故障）。
+
+## 第一片实际环境（2026-10-29）
+Node >=22（已测 24.20.0）；pnpm 固定 10.30.3，通过 npx.cmd --yes pnpm@10.30.3 调用。实际命令：typecheck / lint / test / parse，见 docs/first-feature.md；仅 shared/engine/cli 已实现。

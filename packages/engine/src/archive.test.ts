@@ -1,0 +1,18 @@
+import {it,expect} from 'vitest';
+import {mkdir,mkdtemp,writeFile,readFile,access} from 'node:fs/promises';
+import {resolve,join} from 'node:path';
+import * as yazl from 'yazl';
+import {importZip,writeZip,exportArchive,ZIP_LIMITS,validateZipName} from './archive.js';
+import {parseProject} from './index.js';
+async function temp(){const b=resolve('.deepworks/tmp');await mkdir(b,{recursive:true});return mkdtemp(join(b,'zip-test-'));}
+async function fixture(entries:[string,string][],change?:(b:Buffer)=>void){const z=new yazl.ZipFile();const parts:Buffer[]=[];const done=new Promise<Buffer>((ok,no)=>{z.outputStream.on('data',b=>parts.push(b));z.outputStream.on('end',()=>ok(Buffer.concat(parts)));z.outputStream.on('error',no);});for(const [p,c]of entries)z.addBuffer(Buffer.from(c),p,{compress:false});z.end();const b=await done;change?.(b);const path=join(await temp(),'input.zip');await writeFile(path,b);return path;}
+it('导入内容和解析统计与目录一致，输入包不变',async()=>{const path=join(await temp(),'hello.zip');await writeZip(resolve('samples/hello'),path);const before=await readFile(path),dir=await importZip(path);expect((await parseProject(dir)).files).toEqual((await parseProject('samples/hello')).files);expect(await readFile(path)).toEqual(before);});
+it('ZIP 导出重读清单及源码一致',async()=>{const path=join(await temp(),'out.zip');const m=await exportArchive('samples/hello',path,'zip');const dir=await importZip(path);expect(JSON.parse(await readFile(join(dir,'export-manifest.json'),'utf8'))).toEqual(m);expect(await readFile(join(dir,'src/main.cj'),'utf8')).toContain('main()');});
+it('ZIP 输入到目录导出',async()=>{const base=await temp(),input=join(base,'hello.zip');await writeZip(resolve('samples/hello'),input);expect((await exportArchive(input,join(base,'out'),'dir')).exportedFileCount).toBe(2);});
+it('拒绝非法名字、链接条目与穿越包',async()=>{for(const n of ['../a','/a','C:/a','a\\b','NUL.cpp','a/./b','a /x'])expect(()=>validateZipName(n)).toThrow();
+ const link=await fixture([['a.cpp','x']],b=>{const c=b.indexOf(Buffer.from([0x50,0x4b,1,2]));b.writeUInt32LE((0xa1ff*65536)>>>0,c+38);});await expect(importZip(link)).rejects.toThrow('链接');
+ const path=await fixture([['aa/a','x']],b=>{let at=0;while((at=b.indexOf('aa/a',at))>=0){b.write('../a',at);at+=4;}});await expect(importZip(path)).rejects.toThrow();});
+it('重复/大小写/文件目录冲突拒绝',async()=>{for(const e of [[['A.cpp','a'],['a.cpp','b']],[['a','a'],['a/x','b']]] as [string,string][][])await expect(importZip(await fixture(e))).rejects.toThrow('冲突');});
+it('压缩大小、条目、单文件和总解压大小限额',async()=>{const path=await fixture([['a.cpp','1234'],['b.cpp','5678']]);for(const change of [{archiveBytes:1},{entries:1},{fileBytes:3},{totalBytes:7}])await expect(importZip(path,undefined,{...ZIP_LIMITS,...change})).rejects.toThrow('超限');});
+it('损坏 ZIP 和 CRC 拒绝',async()=>{const p=join(await temp(),'bad.zip');await writeFile(p,'bad');await expect(importZip(p)).rejects.toThrow();const corrupt=await fixture([['a.cpp','unique-data']],b=>{b[b.indexOf('unique-data')]=0;});await expect(importZip(corrupt)).rejects.toThrow('CRC');});
+it('目标拒绝覆盖、取消不创建目标',async()=>{const base=await temp(),out=join(base,'out.zip');await writeFile(out,'keep');await expect(exportArchive('samples/hello',out,'zip')).rejects.toThrow('已存在');expect(await readFile(out,'utf8')).toBe('keep');const c=new AbortController();c.abort();const path=join(base,'new.zip');await expect(writeZip('samples/hello',path,c.signal)).rejects.toMatchObject({name:'AbortError'});await expect(access(path)).rejects.toThrow();});

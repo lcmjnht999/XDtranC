@@ -1,0 +1,16 @@
+{
+    "name": "@xdtranc/engine",
+    "private": true,
+    "type": "module",
+    "exports": {
+        ".": "./src/index.ts",
+        "./chunker": "./src/chunker.ts"
+    },
+    "dependencies": {
+        "@xdtranc/shared": "workspace:*",
+        "tree-sitter-wasms": "0.1.13",
+        "web-tree-sitter": "0.20.8",
+        "yauzl": "3.2.0",
+        "yazl": "3.3.1"
+    }
+}

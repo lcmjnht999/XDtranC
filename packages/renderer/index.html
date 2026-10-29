@@ -1,0 +1,21 @@
+<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'"><title>XDtranC 工作台</title><style>body{font:16px system-ui;margin:28px;background:#f5f7fa;color:#172536}button{padding:10px;margin:5px}section{display:grid;grid-template-columns:1fr 1fr;gap:16px}pre{background:white;padding:16px;white-space:pre-wrap;overflow:auto;max-height:380px;border:1px solid #ccd5df}#status{font-weight:bold}small{color:#526070}</style>
+<h1>XDtranC 最小工作台</h1><p>默认离线 Mock · Ollama 仅限本机回环地址 · 所有输出均未验证仓颉编译</p>
+<p><label>转换方式 <select id="provider"><option value="mock">Mock（模拟）</option><option value="ollama">Ollama（本机）</option></select></label>
+<label>已安装模型 <input id="model" placeholder="准确模型名，不会自动下载"></label>
+<label>地址 <input id="endpoint" value="http://127.0.0.1:11434"></label>
+<label>超时毫秒 <input id="timeout" type="number" min="1" max="600000" value="120000"></label></p>
+<p>选择 Ollama 后会将当前 chunk 源码及声明上下文发送到指定本机服务；不切云端，不自动回退 Mock。</p><p id="resultMode">尚无结果</p>
+<button id="dir">选择目录</button><button id="zip">选择 ZIP</button><span id="path">未选择输入</span><br>
+<button id="run" disabled>开始转换</button><button id="cancel" disabled>取消</button><button id="exportDir" disabled>导出目录</button><button id="exportZip" disabled>导出 ZIP</button>
+<p id="status" role="status">就绪</p><pre id="error" role="alert" hidden></pre><small>输入预览最多 20 个文件，每个最多 20,000 字符。请以结果来源标记区分模拟与模型草稿。</small>
+<section><div><h2>输入预览</h2><pre id="input"></pre></div><div><h2>输出草稿</h2><pre id="output"></pre></div></section><h2>问题与失败清单</h2><pre id="issues"></pre>
+<script>
+const api=window.workbench,$=id=>document.getElementById(id);let selected=false,ready=false;
+function busy(on){for(const id of ['provider','model','endpoint','timeout'])$(id).disabled=on;$('dir').disabled=$('zip').disabled=on;$('run').disabled=on||!selected;$('cancel').disabled=!on;$('exportDir').disabled=$('exportZip').disabled=on||!ready;}
+async function action(fn){$('error').hidden=true;busy(true);try{await fn();}catch(e){$('error').textContent=String(e);$('error').hidden=false;}finally{busy(false);}}
+api.status(s=>$('status').textContent=s);
+for(const kind of ['dir','zip'])$(kind).onclick=()=>action(async()=>{const p=await api.choose(kind);if(p){selected=true;ready=false;$('path').textContent=p;for(const id of ['input','output','issues'])$(id).textContent='';}});
+$('run').onclick=()=>action(async()=>{ready=false;for(const id of ['input','output','issues'])$(id).textContent='';$("resultMode").textContent='尚无结果';const r=await api.run({provider:$("provider").value,model:$("model").value,endpoint:$("endpoint").value,timeoutMs:Number($("timeout").value)});ready=true;$("resultMode").textContent='本次结果：'+(r.report.simulated?'Mock 模拟':('Ollama / '+r.report.model))+' · 未验证编译';$('input').textContent=r.previews.map(f=>f.path+'\n'+f.code).join('\n\n');$('output').textContent=r.report.results.flatMap(c=>c.output.outputs.map(f=>f.path+'\n'+f.code)).join('\n\n');$('issues').textContent=JSON.stringify({unsupported:r.report.unsupported,failedChunks:r.report.failedChunks,unassigned:r.report.unassigned},null,2);});
+$('cancel').onclick=()=>api.cancel().catch(e=>{$('error').textContent=String(e);$('error').hidden=false;});
+for(const [id,format] of [['exportDir','dir'],['exportZip','zip']])$(id).onclick=()=>action(async()=>{const r=await api.export(format);if(r)$('status').textContent='导出结束：'+r.status+' → '+r.path;});
+</script></html>

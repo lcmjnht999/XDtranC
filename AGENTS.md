@@ -7,7 +7,7 @@
 
 ## 当前仓库状态
 
-git 仓库 `https://github.com/lcmjnht999/XDtranC`（私有，`main` 分支）。`docs/` 下是产品与研究文档（PRD / Tech Design / research），根目录是本文件 + `MEMORY.md` + `REVIEW-CHECKLIST.md` + `agent_docs/`，代码尚未初始化（没有 `package.json`、没有 `packages/`）。因此下文所有命令都是 Tech Design 的计划命令，**尚未运行过**，第一次搭建脚手架后需按实际 package.json 校正。
+git 仓库 `https://github.com/lcmjnht999/XDtranC`（私有，`main` 分支）。`docs/` 下是产品与研究文档（PRD / Tech Design / research），根目录是本文件 + `MEMORY.md` + `REVIEW-CHECKLIST.md` + `agent_docs/`，已初始化 shared/engine/cli 与只读目录解析第一片。实际已验证命令和限制见 `docs/first-feature.md`；下文 renderer/e2e/eval/build/pkg 仍是后续计划命令，不代表已实现。
 
 ## Commands
 

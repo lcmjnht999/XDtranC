@@ -1,0 +1,4 @@
+import { test, expect } from 'vitest';
+import { desktopProvider } from './provider-config.js';
+test('桌面默认模拟且显式选择本机模型',()=>{expect(desktopProvider(undefined).simulated).toBe(true);expect(desktopProvider({provider:'ollama',model:'test-model',endpoint:'http://127.0.0.1:11434',timeoutMs:1000}).simulated).toBe(false);});
+test('拒绝非法配置，不回退模拟',()=>{for(const v of [null,[],{provider:'cloud'},{provider:'ollama',model:'',endpoint:'http://127.0.0.1:11434',timeoutMs:10},{provider:'ollama',model:'m',endpoint:'https://example.com',timeoutMs:10},{provider:'ollama',model:'m',endpoint:'http://127.0.0.1:11434',timeoutMs:0}])expect(()=>desktopProvider(v)).toThrow();});

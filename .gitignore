@@ -31,3 +31,11 @@ samples/internal/
 # 系统文件
 .DS_Store
 Thumbs.db
+
+# 会话检查临时文件
+.deepworks/
+
+# 本地演示导出，不入库
+/outputs/hello-export*/
+
+/outputs/hello-archive*.zip

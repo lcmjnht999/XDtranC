@@ -1,0 +1,1 @@
+import ts from 'typescript-eslint'; export default [{ignores:['**/dist/**']},{files:['**/preload.cjs'],rules:{'@typescript-eslint/no-require-imports':'off'}},...ts.configs.recommended,{files:['**/preload.cjs'],rules:{'@typescript-eslint/no-require-imports':'off'}},{rules:{'@typescript-eslint/no-explicit-any':'error'}}];

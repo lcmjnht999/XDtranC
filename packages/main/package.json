@@ -1,0 +1,1 @@
+{"name":"@xdtranc/main","private":true,"type":"module","dependencies":{"@xdtranc/engine":"workspace:*","web-tree-sitter":"0.20.8","tree-sitter-wasms":"0.1.13"}}
