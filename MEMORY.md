@@ -20,6 +20,7 @@ Update this after major decisions, completed phases, or bugs that future agents 
 - 2026-10-29 **范围以 Tech Design（2026-10-22 修订版）为准**：本 MVP 只做 4 项（导入解析、切分、LLM 转换 + 自核查、工作台 + 导出）；编译验证/自动修复/测试/用户反馈修复不在本 MVP，<15% 与 <20% 指标作废，验收改为出物完整性。原因：用户在本轮确认；Tech Design 已把该修订写进正文与 Open Questions 第 9 条。
 - 2026-10-29 PRD 原文保持不动，作为历史版本保留；不一致记录在 AGENTS.md「范围权威」，不擅自改写 PRD。
 - 2026-10-29 适配器选择：以 `AGENTS.md` 为主入口（DeepWorks/Codex 读取），另加两份极薄适配器 `.cursor/rules/00-project.mdc`、`.github/copilot-instructions.md`。原因：用户未指定编码助手，Tech Design 把 Cursor / VS Code + Copilot 列为备选；薄适配器不含重复内容，随时可删。
+- 2026-10-29 **操作边界（长期）**：git 写操作（init / add / commit / push / pull / merge / tag / branch / remote）与 GitHub 上传一律由用户本人执行，助手只给可复制命令、预期输出和校验点；只读查询（status / log / diff / ls-tree）可以做。原因：用户明确要求，上传是不可撤回的外部外发。
 - 2026-10-29 目录合并方式：把 setup 产物复制进仓库根，三份文档 `git mv` 进 `docs/`；**不是**把 `项目10` 整目录搬进来。原因：整目录搬会多一层目录、且带入 `.opencode/`、`cache/`、`uploads/`、`outputs/` 等运行时目录；PRD/TechDesign 正文与 AGENTS.md 都按 `docs/...` 引用。
 
 ## AI / Tooling Decisions

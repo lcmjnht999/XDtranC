@@ -54,6 +54,13 @@ git 仓库 `https://github.com/lcmjnht999/XDtranC`（私有，`main` 分支）�
 
 ## Protected areas
 
+### Git 与发布：写操作只能由用户本人执行（2026-10-29 用户指令，永久有效）
+
+- **禁止代跑任何 git 写操作**：`git init` / `add` / `commit` / `push` / `pull` / `merge` / `rebase` / `tag` / `branch` / `remote` / `stash` / 子模块，以及 `gh` 系列命令。
+- 需要"上传/同步到 GitHub"时：助手只给出**可复制命令 + 每步预期输出 + 校验点**，由用户执行并回报结果；不代跑、不"顺手"执行。
+- 允许的只读核对：`git status`、`git log`、`git diff`、`git show`、`git ls-files`、`git ls-tree`、`git remote -v`。
+- 同理，任何外部网络写、发布、部署、打包分发、生产库操作，一律只给命令不代跑。
+
 密钥、凭据、私有日志、验收库源码不进提交，也不进入未授权的传输。保留与本任务无关的工作区改动。
 
 Provider API Key 只存本机（Windows Credential Manager / Linux keyring，退化时用受限权限配置文件），不写日志、不写报告、不随导出物带走。
