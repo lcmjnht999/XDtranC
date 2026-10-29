@@ -1,0 +1,33 @@
+# 依赖与构建产物
+node_modules/
+.pnpm-store/
+dist/
+out/
+build/
+release/
+
+# 本地工作区与产物（设计约定：.xdtranc/ 与导出包不入库）
+.xdtranc/
+exports/
+outputs/
+uploads/
+cache/
+
+# 日志
+*.log
+*.log.jsonl
+
+# 敏感文件：密钥、凭据、本地设置
+.env
+.env.*
+settings.json
+*.pem
+*.key
+*.pfx
+
+# 内部验收库只走内网通道，不进仓库
+samples/internal/
+
+# 系统文件
+.DS_Store
+Thumbs.db
