@@ -73,7 +73,16 @@ export async function chunkModel(model: ProjectModel, budgetTokens: number, sign
     const broken = group.find(f => failures.has(f));
     const missing = group.flatMap(f => graph.get(f)!).find(d => !group.includes(d) && !assigned.has(d));
     let reason = broken ? `依赖分量不可切分：${broken}：${failures.get(broken)}` : missing ? `依赖文件未分配：${missing}` : '';
-    if (!reason && cost(group) > budgetTokens) reason = '单文件或依赖环（含上下文）超过预算，不强拆';
+    if (!reason && cost(group) > budgetTokens) {
+      // 单文件超预算交给 converter 按行缩块；依赖环必须整体转换，保持未分配（TechDesign：不强拆环）。
+      if (group.length === 1) {
+        const id = `chunk-${String(result.chunks.length + 1).padStart(4, '0')}`;
+        result.chunks.push({ id, files: group, contextBundle: context(group), estTokens: cost(group), deps: [], overBudget: true });
+        group.forEach(f => assigned.set(f, id));
+        continue;
+      }
+      reason = '依赖环（含上下文）超过预算，不强拆';
+    }
     if (reason) { for (const f of group) result.unassigned.push({ sourcePath: f, line: null, reason }); continue; }
     const previous = result.chunks.at(-1);
     const connected = group.some(f => graph.get(f)!.length || reverse.get(f)!.length);
@@ -87,6 +96,6 @@ export async function chunkModel(model: ProjectModel, budgetTokens: number, sign
     }
   }
   for (const chunk of result.chunks) chunk.deps = [...new Set(chunk.files.flatMap(f => graph.get(f)!).map(f => assigned.get(f)!).filter(id => id && id !== chunk.id))].sort();
-  if (result.unassigned.length || result.unsupported.length) result.status = 'partial';
+  if (result.unassigned.length || result.unsupported.length || result.chunks.some(c => c.overBudget)) result.status = 'partial';
   return result;
 }

@@ -23,10 +23,11 @@ it('环整体入块，预算不足则整体未分配并阻断依赖方',async()=
   const ok = await chunkProject(root); expect(ok.chunks[0].files).toContain('a.h'); expect(ok.chunks[0].files).toContain('b.h');
   const bad = await chunkProject(root,10); expect(bad.chunks).toHaveLength(0); expect(bad.unassigned.map(i=>i.sourcePath).sort()).toEqual(['a.h','b.h','main.cpp']);
 });
-it('上下文纳入硬预算，孤立文件独立',async()=>{
+it('上下文纳入硬预算，单文件超预算转入缩块',async()=>{
   const root = await fixture({'h/a.h':'int a();','s/m.cpp':'#include "../h/a.h"\nint main() {}','orphan.cpp':'int orphan;'});
-  const r = await chunkProject(root,60); expect(r.unassigned.some(i=>i.sourcePath==='s/m.cpp')).toBe(true); expect(r.chunks).toHaveLength(2);
-  expect(r.chunks.every(c=>c.estTokens<=60)).toBe(true);
+  const r = await chunkProject(root,60); expect(r.status).toBe('partial'); expect(r.unassigned).toHaveLength(0);
+  expect(r.chunks.some(c=>c.overBudget && c.files[0]==='s/m.cpp')).toBe(true); expect(r.chunks).toHaveLength(3);
+  expect(r.chunks.filter(c=>!c.overBudget).every(c=>c.estTokens<=60)).toBe(true);
 });
 it('编码与语法失败不静默丢失，未知 include 保留提示',async()=>{
   const root = await fixture({'bad.cpp':'int main() { return +; }','bad.h':Buffer.from([255]),'ok.cpp':'#include "missing.h"\nint a;'});

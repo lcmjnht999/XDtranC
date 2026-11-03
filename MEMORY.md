@@ -4,15 +4,15 @@ Update this after major decisions, completed phases, or bugs that future agents 
 
 ## Current State
 
-- Current task: 批次 D（UI 技术栈 React + Vite + 动态 Monaco）已完成并人工验收通过；按工作流下一批是 E（Provider 健壮性）。
-- Current phase: 2026-11-03 完成 React 工程迁移、`app://` 协议加载、Monaco 懒加载；typecheck/lint、74 项 Vitest、eval 10 类通过，用户确认界面“没有问题”。
-- Next step: 等用户确认提交 D 后进入批次 E（限流/超时/超长 chunk 的模拟用例），不自动扩范围。
-- Blocked by: 真实 Ollama 验收与外部 Provider 合规确认未完成；不影响批次 E。
+- Current task: 批次 E、F 已完成，等待最终验收与提交。
+- Current phase: 2026-11-03 完成 Provider 健壮性（E）与交付收尾（F）：`build`/`e2e`/`pkg` 脚本、Playwright Electron 主旅程、`electron-builder --dir` 打包产物启动通过。
+- Next step: 跑最终全量验收（typecheck/lint/test/eval/e2e），由用户确认后提交；真实 Ollama 验收仍为可选项。
+- Blocked by: 真实 Ollama 验收与外部 Provider 合规确认未完成；不影响 E/F。
 - 交接文档：docs/handoff-2026-11-03.md（新会话先读此文件；含环境、命令、批次状态、未提交清单、批次 E 计划、硬约束）。
 
 ## 仓库与目录
 
-- 唯一真源：`C:\Users\34381\XDtranC`（git 仓库，remote `origin` = `https://github.com/lcmjnht999/XDtranC.git`，私有，分支 `main`）。
+- 唯一真源：`C:\Users\xuhailong\Desktop\XDtranC`（git 仓库，remote `origin` = `https://github.com/lcmjnht999/XDtranC.git`，私有，分支 `main`）。
 - `docs/` 放 PRD / Tech Design / research；文档正文自己引用的就是 `docs/...`，不要把文档挪回根目录。
 - `C:\Users\xuhailong\Desktop\许铭真2026\Projects\Deepworks\项目10` 是 DeepWorks 的会话工作区，只保留 setup 那次生成的副本，**不再作为开发目录**；两边内容若不一致，以本仓库为准。
 
@@ -53,8 +53,8 @@ Update this after major decisions, completed phases, or bugs that future agents 
 - [x] Initial scaffold（pnpm monorepo + 五个 package 骨架）
 - [x] Core data model（`packages/shared/src/contracts.ts` / `outputSchema.ts` / `errors.ts`）
 - [x] Core MVP flow（import → parse → chunk → convert → export）
-- [ ] 评测集与主旅程 E2E（Mock Provider 离线）
-- [ ] Launch checks（打包、内网分发、演示材料）
+- [x] 评测集与主旅程 E2E（Mock Provider 离线；Playwright Electron，含打包产物用例）
+- [ ] Launch checks（打包已完成 `--dir` 产物并验证启动；内网分发、演示材料未做）
 - 说明：Auth 不在本产品范围内，已从模板移除。
 
 ## 第一片交接（2026-10-29）
@@ -190,3 +190,22 @@ Update this after major decisions, completed phases, or bugs that future agents 
 - 验证：typecheck/lint 通过，12 文件 74 项测试，eval 10 类通过；首屏 1230/1074/1049 ms；用户手工确认界面无问题。
 - 已知限制：renderer 产物约 13.5 MB（Monaco 全量语言包）、空 worker 无语言服务、未做打包。
 - 详见 docs/feature-d-react.md。未执行 Git 写、删除或发布。
+
+## 批次 E 交接（2026-11-03）
+
+- 统一 Provider 契约：`ProviderError(kind/retryable/retryAfterMs)`；Mock 与 Ollama 共用 `LlmProvider`，普通 Error 仍一次性失败。
+- 429/408/504/5xx/网络错误指数退避：默认 2 次重试、500ms 起、上限 8s，尊重 Retry-After（≤30s），等待期间可取消；404 等 4xx 与响应结构错误不重试。
+- 单文件（含上下文）超预算不再 unassigned，改为 `overBudget` chunk，由 converter 按行缩块；依赖环仍整体不拆，超预算继续 unassigned。
+- 报告新增 `retries[]`、`splits[]`，results/failedChunks 新增 `providerRetries`；失败原因带“已重试 N 次”。
+- 验证：typecheck/lint、13 文件 80 项测试、eval 10 类全过；新增 `provider-robustness.test.ts` 6 项（429×2、429 耗尽、504/404、缩块成功、单行无法缩块、退避取消）。
+- 详见 `docs/feature-e-provider.md`。未执行 Git 写、删除或发布。
+
+## 批次 F 交接（2026-11-03）
+
+- 新增脚本：`pnpm build`（Vite + esbuild + preload）、`pnpm e2e`（build 后跑 Playwright）、`pnpm run pkg`（electron-builder `--dir`）。注意 `pnpm pkg` 会被 pnpm 内置命令抢占，必须用 `pnpm run pkg`。
+- `e2e/mvp.spec.ts` 两个用例：开发构建主旅程、`release/win-unpacked/XDtranC.exe` 打包产物主旅程；通过主进程替换 `dialog` 方法驱动原生对话框，仍走真实 IPC、转换与导出。
+- 打包配置 `electron-builder.yml`：`win.target=dir`、`signAndEditExecutable=false`、`asarUnpack: **/*.wasm`；主进程外部依赖（web-tree-sitter / tree-sitter-wasms / yauzl / yazl）已提升为根 dependencies，否则 asar 缺包。
+- 打包产物 `release/win-unpacked/XDtranC.exe` 已实际启动并完成一次 Mock 旅程（2 文件，manifest `status=complete`、`simulated=true`）。
+- CJPM 目录结构仍待消费方确认，未生成；记为 Open Question。
+- 验证：typecheck/lint、80 项 Vitest、eval 10 类、Playwright 2 项全过。未执行 Git 写、删除或发布。
+- 详见 `docs/feature-f-delivery.md`。

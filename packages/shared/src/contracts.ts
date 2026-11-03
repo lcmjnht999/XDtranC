@@ -4,5 +4,5 @@ export interface SymbolInfo { sourcePath: string; line: number; kind: string; na
 export interface DepEdge { sourcePath: string; line: number; include: string; kind: 'local' | 'system' | 'unresolved'; targetPath?: string }
 export interface ProjectModel { root: string; discoveredFiles?: string[]; summaries?: DeclarationSummary[]; files: SourceFile[]; symbols: SymbolInfo[]; deps: DepEdge[]; unsupported: Issue[]; stats: { files: number; lines: number }; status: 'complete' | 'partial' }
 export interface DeclarationSummary { sourcePath: string; line: number; signature: string }
-export interface Chunk { id: string; files: string[]; contextBundle: DeclarationSummary[]; estTokens: number; deps: string[] }
+export interface Chunk { id: string; files: string[]; contextBundle: DeclarationSummary[]; estTokens: number; deps: string[]; overBudget?: boolean }
 export interface ChunkResult { budgetTokens: number; estimator: string; chunks: Chunk[]; unassigned: Issue[]; unsupported: Issue[]; status: 'complete' | 'partial' }

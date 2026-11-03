@@ -34,7 +34,7 @@ it('跨块冲突和依赖失败不能覆盖已有输出',async()=>{
 it('源变化拒绝调用 Provider，切分未分配保留',async()=>{
   const root=await fixture(), model=await parseProject(root), plan=await chunkModel(model,4096); await writeFile(join(root,'a.cpp'),'int b;'); let calls=0;
   const r=await convertChunks(model,plan,provider(()=>{calls++;return valid();})); expect(calls).toBe(0); expect(r.failedChunks[0].issues[0]).toContain('变化');
-  const small=await convertProject(root,new MockProvider(),1); expect(small.unassigned).toHaveLength(1); expect(small.unsupported).toHaveLength(1);
+  const small=await convertProject(root,new MockProvider(),1); expect(small.unassigned).toHaveLength(0); expect(small.failedChunks).toHaveLength(1); expect(small.failedChunks[0].issues[0]).toContain('无法缩块');
 });
 it('提前取消、调用中取消与 Provider 异常',async()=>{
   const c=new AbortController();c.abort(); await expect(convertProject('samples/hello',new MockProvider(),4096,c.signal)).rejects.toMatchObject({name:'AbortError'});

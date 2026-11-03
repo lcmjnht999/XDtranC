@@ -27,7 +27,7 @@ it('路径穿越、重复和文件目录冲突在写盘前拒绝',async()=>{
 });
 it('部分与零输出保留问题且不宣称成功',async()=>{
  const {model,report}=await data();report.status='partial'; report.unsupported.push({sourcePath:'main.cpp',line:1,reason:'测试问题'});report.results.pop();const partial=await exportReport(model,report,join(await temp(),'out'));expect(partial.status).toBe('partial');expect(partial.exportedFileCount).toBe(1);expect(partial.unsupported).toHaveLength(1);
- const zero=await exportProject('samples/hello',join(await temp(),'out'),new MockProvider(),1);expect(zero.status).toBe('failed');expect(zero.exportedFileCount).toBe(0);expect(zero.unassigned).toHaveLength(2);
+ const zero=await exportProject('samples/hello',join(await temp(),'out'),new MockProvider(),1);expect(zero.status).toBe('failed');expect(zero.exportedFileCount).toBe(0);expect(zero.unassigned).toHaveLength(0);expect(zero.failedChunks).toHaveLength(2);
 });
 it('源文件变化拒绝导出',async()=>{
  const root=await temp();await writeFile(join(root,'a.cpp'),'int a;');const model=await parseProject(root),report=await convertProject(root,new MockProvider());await writeFile(join(root,'a.cpp'),'int b;');await expect(exportReport(model,report,join(await temp(),'out'))).rejects.toThrow('变化');

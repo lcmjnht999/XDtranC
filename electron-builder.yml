@@ -1,0 +1,16 @@
+appId: com.xdtranc.desktop
+productName: XDtranC
+directories:
+  output: release
+files:
+  - package.json
+  - packages/main/dist/**
+asar: true
+asarUnpack:
+  - "**/*.wasm"
+npmRebuild: false
+extraMetadata:
+  main: packages/main/dist/main.mjs
+win:
+  target: dir
+  signAndEditExecutable: false

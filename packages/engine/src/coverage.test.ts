@@ -16,7 +16,7 @@ function report(outputs: ConversionOutput[], unsupported: { sourcePath: string; 
   return {
     simulated: true, providerId: 'mock', model: 'test', status: 'complete',
     results: outputs.map((item, index) => ({ chunkId: `chunk-000${index + 1}`, attempts: 1, output: item })),
-    failedChunks: [], unassigned: [], unsupported,
+    failedChunks: [], unassigned: [], unsupported, retries: [], splits: [],
   };
 }
 

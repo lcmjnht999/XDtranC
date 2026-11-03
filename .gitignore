@@ -6,6 +6,10 @@ out/
 build/
 release/
 
+# Playwright 产物
+test-results/
+playwright-report/
+
 # 本地工作区与产物（设计约定：.xdtranc/ 与导出包不入库）
 .xdtranc/
 exports/
