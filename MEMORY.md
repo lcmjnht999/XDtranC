@@ -4,10 +4,10 @@ Update this after major decisions, completed phases, or bugs that future agents 
 
 ## Current State
 
-- Current task: 批次 C（工作台能力）已完成并人工验收通过；下一批待规划（React/Monaco 重构、打包分发、自动化 E2E 优先级待用户定）。
-- Current phase: 2026-11-03 完成粘贴临时项目、输入文件树、导出前完整性摘要确认；typecheck/lint、68 项 Vitest、eval 10 类通过，用户手工点通导出确认旅程。
-- Next step: 等用户决定下一步（重构 UI 或补打包/E2E）；不自动扩范围。
-- Blocked by: 真实 Ollama 验收与外部 Provider 合规确认未完成；不影响已完成批次。
+- Current task: 批次 D（UI 技术栈 React + Vite + 动态 Monaco）已完成并人工验收通过；按工作流下一批是 E（Provider 健壮性）。
+- Current phase: 2026-11-03 完成 React 工程迁移、`app://` 协议加载、Monaco 懒加载；typecheck/lint、74 项 Vitest、eval 10 类通过，用户确认界面“没有问题”。
+- Next step: 等用户确认提交 D 后进入批次 E（限流/超时/超长 chunk 的模拟用例），不自动扩范围。
+- Blocked by: 真实 Ollama 验收与外部 Provider 合规确认未完成；不影响批次 E。
 
 ## 仓库与目录
 
@@ -39,7 +39,7 @@ Update this after major decisions, completed phases, or bugs that future agents 
 
 ## Known Issues
 
-- 当前含桌面、ZIP、Mock与Ollama适配、`.xdtranc` 持久化与断点续跑、符号级覆盖与空壳判定、粘贴临时项目/输入文件树/导出前摘要确认；尚缺 React/Monaco、打包分发与自动化 E2E。桌面ZIP源目录边界已修复并回归，详见 docs/export-boundary-fix.md。
+- 当前含桌面、ZIP、Mock与Ollama适配、`.xdtranc` 持久化与断点续跑、符号级覆盖与空壳判定、粘贴临时项目/输入文件树/导出前摘要确认、React+Vite+动态 Monaco（首屏约 1.0–1.2s）；尚缺 Monaco 只带 C++ 的精简、打包分发与自动化 E2E。桌面ZIP源目录边界已修复并回归，详见 docs/export-boundary-fix.md。
 - 本机 Node 26.13.0：electron install.js 的 extract-zip 会解压不完整（只留 locales），需用 Expand-Archive 解压缓存 zip 并写 path.txt；tsx 有 module.register 弃用警告，不影响运行。详见 docs/stage0-runbook.md。
 - 没有 cjc / CJPM / clang / g++ 也能正常工作，这是设计预期，不是环境故障。
 
@@ -178,3 +178,14 @@ Update this after major decisions, completed phases, or bugs that future agents 
 - 验证：typecheck/lint 通过，68/68 Vitest，eval 10 类全部符合预期；用户手工完成「粘贴 → 转换 → 文件树 → 导出确认 → 目录导出」旅程。
 - 已知限制：粘贴一次只支持一个文件；文件树不表达 include 依赖边；符号识别仍为正则。
 - 详见 docs/feature-c-workbench.md。未新增依赖、未调用真实模型、未执行 Git 写、删除或发布。
+
+
+## 批次 D 交接（2026-11-03）
+
+- 把单文件 HTML 迁到 `packages/renderer` 的 Vite + React 工程：`App` 管状态，`FileTree`/`SummaryBar`/`CodeView`/`MonacoPanel` 分包，IPC 契约不变。
+- 主进程改用自定义 `app://` 协议提供 `dist/renderer/`，CSP 收紧到 `script-src 'self'`；`contextIsolation`/`sandbox` 未回退。
+- Monaco 用 `React.lazy` 动态 import，加载前显示 `<pre>`，ErrorBoundary 失败后降级；空 worker 规避 Vite 8 对 `?worker` 子路径的解析失败。
+- 构建改为 Vite → esbuild；typecheck 同时检查根与 renderer。
+- 验证：typecheck/lint 通过，12 文件 74 项测试，eval 10 类通过；首屏 1230/1074/1049 ms；用户手工确认界面无问题。
+- 已知限制：renderer 产物约 13.5 MB（Monaco 全量语言包）、空 worker 无语言服务、未做打包。
+- 详见 docs/feature-d-react.md。未执行 Git 写、删除或发布。

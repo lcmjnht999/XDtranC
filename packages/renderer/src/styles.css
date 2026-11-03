@@ -1,0 +1,52 @@
+:root {
+  color-scheme: light;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-size: 15px;
+  color: #172536;
+  background: #f5f7fa;
+}
+
+* { box-sizing: border-box; }
+
+body { margin: 0; padding: 24px 28px; }
+
+h1 { margin: 0 0 8px; font-size: 22px; }
+h2 { margin: 0 0 8px; font-size: 15px; color: #34465c; }
+
+.muted { color: #526070; }
+.hint { color: #526070; font-size: 12px; }
+.error { background: #fdecec; border: 1px solid #e3a4a4; color: #8c1d1d; padding: 10px 12px; white-space: pre-wrap; }
+
+.toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 12px 0; }
+.toolbar input, .toolbar select { padding: 6px 8px; border: 1px solid #c3ccd6; border-radius: 4px; background: white; }
+.toolbar label { display: inline-flex; gap: 6px; align-items: center; }
+
+button { padding: 8px 12px; border: 1px solid #b9c4d0; border-radius: 4px; background: white; cursor: pointer; }
+button:hover:not(:disabled) { background: #eef3f9; }
+button:disabled { color: #93a0ad; cursor: not-allowed; background: #f3f5f8; }
+button.primary { background: #1f5fbf; border-color: #1f5fbf; color: white; }
+button.primary:hover:not(:disabled) { background: #1a4f9f; }
+
+.summary { display: flex; flex-wrap: wrap; gap: 6px 16px; padding: 10px 12px; border-radius: 4px; margin: 12px 0; border: 1px solid #b8cce8; background: #e8f0fb; }
+.summary.ok { border-color: #a9d3b4; background: #e9f6ec; }
+.summary.warn { border-color: #e3c07a; background: #fdf4e3; }
+
+.panes { display: grid; grid-template-columns: minmax(280px, 0.9fr) 1.1fr; gap: 16px; align-items: start; }
+
+.file-tree { list-style: none; margin: 0; padding: 0; border: 1px solid #ccd5df; background: white; max-height: 220px; overflow: auto; }
+.file-tree li { border-bottom: 1px solid #eef1f4; }
+.file-tree li:last-child { border-bottom: none; }
+.file-tree button { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; width: 100%; border: none; border-radius: 0; text-align: left; }
+.file-tree button.active { background: #e3edfb; }
+.file-tree .name { font-family: ui-monospace, "Cascadia Code", monospace; font-size: 13px; }
+.file-tree .marks { font-size: 12px; color: #526070; }
+
+.code { margin: 0; padding: 0; border: 1px solid #ccd5df; background: white; height: 320px; overflow: auto; }
+.code.empty { padding: 16px; color: #526070; }
+pre.code { padding: 16px; white-space: pre-wrap; }
+
+.issues { max-height: 220px; overflow: auto; }
+
+@media (max-width: 900px) {
+  .panes { grid-template-columns: 1fr; }
+}

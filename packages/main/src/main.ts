@@ -1,6 +1,6 @@
-import { app, BrowserWindow, ipcMain, dialog } from 'electron';
+import { app, BrowserWindow, ipcMain, dialog, protocol } from 'electron';
 import { fileURLToPath } from 'node:url';
-import { dirname, resolve } from 'node:path';
+import { dirname, resolve, sep, extname } from 'node:path';
 import { readFile, realpath, mkdtemp, mkdir, writeFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { parseProject } from '../../engine/src/index.js';
@@ -49,6 +49,34 @@ function buildSummary(model: ProjectModel, report: ConversionReport): WorkbenchS
 }
 
 const base = dirname(fileURLToPath(import.meta.url));
+const rendererRoot = resolve(base, 'renderer');
+protocol.registerSchemesAsPrivileged([{ scheme: 'app', privileges: { standard: true, secure: true, supportFetchAPI: true } }]);
+
+const mimeTypes: Record<string, string> = {
+  '.html': 'text/html; charset=utf-8',
+  '.js': 'text/javascript; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
+  '.json': 'application/json; charset=utf-8',
+  '.svg': 'image/svg+xml',
+  '.png': 'image/png',
+  '.woff': 'font/woff',
+  '.woff2': 'font/woff2',
+  '.ttf': 'font/ttf',
+};
+
+async function serveRenderer(request: Request): Promise<Response> {
+  const url = new URL(request.url);
+  const relative = decodeURIComponent(url.pathname === '/' ? '/index.html' : url.pathname);
+  const target = resolve(rendererRoot, '.' + relative);
+  if (target !== rendererRoot && !target.startsWith(rendererRoot + sep)) return new Response('forbidden', { status: 403 });
+  try {
+    const bytes = await readFile(target);
+    return new Response(new Uint8Array(bytes), { headers: { 'content-type': mimeTypes[extname(target).toLowerCase()] ?? 'application/octet-stream' } });
+  } catch {
+    return new Response('not found', { status: 404 });
+  }
+}
+
 let win: BrowserWindow;
 let selected = '';
 let active: AbortController | undefined;
@@ -82,6 +110,7 @@ async function loadResume(ws: Workspace, checkpoint: TaskCheckpoint): Promise<Ma
 }
 
 void app.whenReady().then(async () => {
+  protocol.handle('app', serveRenderer);
   win = new BrowserWindow({ width: 1100, height: 780, webPreferences: { preload: resolve(base, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true } });
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   win.webContents.on('will-navigate', e => e.preventDefault());
@@ -285,6 +314,6 @@ void app.whenReady().then(async () => {
     }
   });
 
-  await win.loadFile(resolve(base, 'index.html'));
+  await win.loadURL('app://xdtranc/index.html');
   win.on('closed', () => { active?.abort(); app.quit(); });
 });
