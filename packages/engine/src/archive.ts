@@ -4,7 +4,7 @@ import { createWriteStream } from 'node:fs';
 import { pipeline } from 'node:stream/promises';
 import * as yauzl from 'yauzl';
 import * as yazl from 'yazl';
-import { exportProject } from './exporter.js';
+import { exportProject, type ExportOptions } from './exporter.js';
 import { MockProvider } from './provider.js';
 export const ZIP_LIMITS = { archiveBytes: 32*1024*1024, entries: 2000, fileBytes: 8*1024*1024, totalBytes: 64*1024*1024 };
 export async function safeParents(path:string):Promise<void> {
@@ -75,10 +75,10 @@ export async function validateExportTarget(input:string,out:string):Promise<void
  }
  try{await lstat(target);throw new Error('目标已存在，拒绝覆盖');}catch(e){if((e as NodeJS.ErrnoException).code!=='ENOENT')throw e;}
 }
-export async function exportArchive(input:string,out:string,format:'dir'|'zip',budget=4096,signal?:AbortSignal){
+export async function exportArchive(input:string,out:string,format:'dir'|'zip',budget=4096,signal?:AbortSignal,options:ExportOptions={}){
  await validateExportTarget(input,out);
  const source=input.toLowerCase().endsWith('.zip')?await importZip(input,signal):input;
- if(format==='dir')return exportProject(source,out,new MockProvider(),budget,signal);
+ if(format==='dir')return exportProject(source,out,new MockProvider(),budget,signal,options);
  const stage=await mkdtemp(resolve(await scratchRoot(),'zip-export-'));const draft=resolve(stage,'draft');
- const manifest=await exportProject(source,draft,new MockProvider(),budget,signal);await writeZip(draft,out,signal);return manifest;
+ const manifest=await exportProject(source,draft,new MockProvider(),budget,signal,options);await writeZip(draft,out,signal);return manifest;
 }

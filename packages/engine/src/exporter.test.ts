@@ -49,3 +49,30 @@ it('写入期间取消保留已有文件但不生成完成清单',async()=>{
  await expect(exportReport(model,report,out,c.signal)).rejects.toThrow('未完成');
  await access(join(out,'src/calculator.cj'));await access(join(out,'EXPORT-INCOMPLETE.json'));await expect(access(join(out,'export-manifest.json'))).rejects.toThrow();
 });
+it('CJPM 布局可选生成，默认 flat 不受影响',async()=>{
+ const flatOut=join(await temp(),'flat');
+ const flat=await exportProject('samples/hello',flatOut,new MockProvider());
+ expect(flat.layout).toBe('flat');expect(flat.cjpm).toBeNull();
+ await expect(access(join(flatOut,'cjpm.toml'))).rejects.toThrow();
+
+ const out=join(await temp(),'cjpm');
+ const m=await exportProject('samples/hello',out,new MockProvider(),4096,undefined,{cjpm:true});
+ expect(m.layout).toBe('cjpm');expect(m.exportedFileCount).toBe(2);
+ expect(m.cjpm).toMatchObject({path:'cjpm.toml',packageName:'hello',layoutVersion:'xdtranc-cjpm-1',verified:false});
+ const toml=await readFile(join(out,'cjpm.toml'),'utf8');
+ expect(toml).toContain('name = "hello"');expect(toml).toContain('[dependencies]');
+ expect(createHash('sha256').update(toml).digest('hex')).toBe(m.cjpm?.hash);
+ expect(JSON.parse(await readFile(join(out,'export-manifest.json'),'utf8')).layout).toBe('cjpm');
+});
+it('CJPM 非法包名在写盘前拒绝',async()=>{
+ const {model,report}=await data(),out=join(await temp(),'out');
+ await expect(exportReport(model,report,out,undefined,{cjpm:true,packageName:'Bad-Name'})).rejects.toThrow('包名非法');
+ await expect(access(out)).rejects.toThrow();
+});
+it('CLI --cjpm 生成清单并拒绝非法组合',async()=>{
+ const base=await temp();const run=(out:string,...extra:string[])=>spawnSync(process.execPath,['--import','tsx','packages/cli/src/export.ts','samples/hello','--provider=mock','--format=dir',`--out=${out}`,...extra],{encoding:'utf8',timeout:15000});
+ const ok=run(join(base,'cjpm'),'--cjpm','--package=hello_demo','--json');
+ expect(ok.status).toBe(0);const manifest=JSON.parse(ok.stdout);expect(manifest.layout).toBe('cjpm');expect(manifest.cjpm.packageName).toBe('hello_demo');
+ await access(join(base,'cjpm','cjpm.toml'));
+ expect(run(join(base,'bad'),'--package=hello_demo').status).toBe(1);
+});

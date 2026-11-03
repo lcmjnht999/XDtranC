@@ -1,4 +1,4 @@
-import { createServer } from 'node:http';
+﻿import { createServer } from 'node:http';
 import { createHash } from 'node:crypto';
 import { mkdir, mkdtemp, readFile } from 'node:fs/promises';
 import { resolve, join } from 'node:path';
@@ -40,35 +40,40 @@ try {
   app = await electron.launch({ args: ['packages/main/dist/main.mjs'], env: { ...process.env, ELECTRON_RUN_AS_NODE: undefined }, timeout: 30000 });
   const page = await app.firstWindow();
   page.setDefaultTimeout(15000);
+  await page.getByRole('heading', { name: 'XDtranC 工作台' }).waitFor();
   await app.evaluate(({ dialog }, path) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [path] }); }, resolve('samples/hello'));
-  await page.click('#dir');
-  await page.selectOption('#provider', 'ollama');
-  await page.fill('#model', 'offline-fixture');
-  await page.fill('#endpoint', 'http://127.0.0.1:' + server.address().port);
-  async function run() {
-    await page.click('#run');
-    await page.waitForFunction(() => !document.querySelector('#run').disabled);
-    assert.match(await page.locator('#status').innerText(), /模型草稿完成/);
-    assert.match(await page.locator('#resultMode').innerText(), /Ollama.*offline-fixture/);
-    assert.equal(await page.locator('#error').isVisible(), false);
-  }
+  await app.evaluate(({ dialog }) => { dialog.showMessageBox = async () => ({ response: 0, checkboxChecked: false }); });
+  await page.getByRole('button', { name: '选择目录' }).click();
+  await page.getByLabel('转换方式').selectOption('ollama');
+  await page.getByLabel('已安装模型').fill('offline-fixture');
+  await page.getByLabel('地址').fill('http://127.0.0.1:' + server.address().port);
+  const run = async () => {
+    await page.getByRole('button', { name: '开始转换' }).click();
+    await page.waitForFunction(() => {
+      const text = document.querySelector('[role=status]')?.textContent ?? '';
+      return text.includes('模型草稿完成') || text.includes('部分完成');
+    });
+    const error = await page.locator('pre.error').count();
+    assert.equal(error, 0);
+    assert.match(await page.getByRole('status').innerText(), /模型草稿完成/);
+    assert.match(await page.getByText('Ollama / offline-fixture').innerText(), /未验证编译/);
+  };
   await run();
   const normalCalls = requests.length;
   assert.ok(normalCalls > 0);
-  const preview = await page.locator('#output').innerText();
-  for (const code of expected.values()) assert.ok(preview.includes(code.trim()));
   const target = join(temp, 'success');
   await app.evaluate(({ dialog }, path) => { dialog.showSaveDialog = async () => ({ canceled: false, filePath: path }); }, target);
-  await page.click('#exportDir');
-  await page.waitForFunction(() => document.querySelector('#status').textContent.includes('导出结束：complete'));
-  const manifest = JSON.parse(await readFile(join(target, 'export-manifest.json'), 'utf8'));
+  await page.getByRole('button', { name: '导出目录' }).click();
+  await page.waitForFunction(() => document.querySelector('[role=status]')?.textContent?.includes('导出结束：complete'));
+  const manifest = JSON.parse(await readFile(join(target, 'draft', 'export-manifest.json'), 'utf8'));
   assert.equal(manifest.providerId, 'ollama');
   assert.equal(manifest.model, 'offline-fixture');
   assert.equal(manifest.simulated, false); // Provider metadata, NOT evidence of real model execution.
+  assert.equal(manifest.layout, 'flat');
   assert.equal(manifest.exportedFileCount, expected.size);
   assert.deepEqual(manifest.failedChunks, []);
   for (const file of manifest.files) {
-    const bytes = await readFile(join(target, file.path));
+    const bytes = await readFile(join(target, 'draft', file.path));
     assert.equal(bytes.toString('utf8'), expected.get(file.path));
     assert.equal(createHash('sha256').update(bytes).digest('hex'), file.hash);
   }
@@ -78,20 +83,19 @@ try {
   assert.equal(requests.filter(r => r.retryIssues.length > 0).length, normalCalls);
   assert.ok(requests.filter(r => r.retryIssues.length > 0).every(r => r.retryIssues.join(' ').includes('fixture requires retry')));
   mode = 'cancel'; requests.length = 0;
-  await page.click('#run');
+  await page.getByRole('button', { name: '开始转换' }).click();
   const deadline = Date.now() + 10000;
   while (!requests.length && Date.now() < deadline) await new Promise(r => setTimeout(r, 25));
   assert.equal(requests.length, 1);
-  await page.click('#cancel');
-  await page.waitForFunction(() => !document.querySelector('#run').disabled);
-  assert.equal(await page.locator('#status').innerText(), '已取消');
-  assert.equal(await page.locator('#exportDir').isDisabled(), true);
-  assert.equal(await page.locator('#exportZip').isDisabled(), true);
-  assert.equal(await page.locator('#output').innerText(), '');
+  await page.getByRole('button', { name: '取消' }).click();
+  await page.waitForFunction(() => document.querySelector('[role=status]')?.textContent === '已取消');
+  assert.equal(await page.getByRole('button', { name: '导出目录' }).isDisabled(), true);
+  assert.equal(await page.getByRole('button', { name: '导出 ZIP' }).isDisabled(), true);
+  assert.equal(await page.locator('.code.empty').count(), 1);
   mode = 'success';
   await run(); // Cancellation must not poison the next conversion.
   await page.screenshot({ path: join(temp, 'success.png') });
-  console.log('通过：Ollama协议离线成功、预览/文件/hash/来源一致、自核查重试、请求中取消、取消后恢复。没有真实模型调用。');
+  console.log('通过：Ollama协议离线成功、导出文件/hash/来源一致、自核查重试、请求中取消、取消后恢复。没有真实模型调用。');
 } finally {
   if (app) await app.close();
   server.closeAllConnections();

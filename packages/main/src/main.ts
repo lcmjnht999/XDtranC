@@ -10,7 +10,7 @@ import { Workspace, fingerprint, type TaskCheckpoint } from '../../engine/src/wo
 import { parseConversionOutput, type ConversionOutput } from '../../shared/src/outputSchema.js';
 import { desktopProvider } from './provider-config.js';
 import { importZip, writeZip, scratchRoot, validateExportTarget } from '../../engine/src/archive.js';
-import { exportReport } from '../../engine/src/exporter.js';
+import { exportReport, type ExportOptions } from '../../engine/src/exporter.js';
 import { analyzeCoverage, businessStubStatus, type CoverageReport } from '../../engine/src/coverage.js';
 import type { ProjectModel } from '../../shared/src/contracts.js';
 
@@ -93,6 +93,15 @@ function register(channel: string, handler: (arg: unknown) => Promise<unknown>) 
     if (event.sender !== win.webContents || event.senderFrame !== win.webContents.mainFrame) throw new Error('非法 IPC 来源');
     return handler(arg);
   });
+}
+
+function exportOptions(raw: unknown): ExportOptions {
+  if (!raw || typeof raw !== 'object') return {};
+  const data = raw as Record<string, unknown>;
+  if (data.cjpm !== undefined && typeof data.cjpm !== 'boolean') throw new Error('非法 CJPM 选项');
+  if (data.packageName !== undefined && typeof data.packageName !== 'string') throw new Error('非法包名');
+  const packageName = typeof data.packageName === 'string' ? data.packageName.trim() : '';
+  return { cjpm: data.cjpm === true, packageName: packageName || undefined };
 }
 
 async function loadResume(ws: Workspace, checkpoint: TaskCheckpoint): Promise<Map<string, ConversionOutput>> {
@@ -257,8 +266,11 @@ void app.whenReady().then(async () => {
     }
   });
 
-  register('project:export', async format => {
+  register('project:export', async payload => {
+    const request = payload && typeof payload === 'object' ? payload as Record<string, unknown> : { format: payload };
+    const format = request.format;
     if (format !== 'dir' && format !== 'zip') throw new Error('非法导出格式');
+    const options = exportOptions(request.options);
     if (active || !model || !report) throw new Error('尚无可导出的结果');
     active = new AbortController();
     const signal = active.signal;
@@ -270,6 +282,7 @@ void app.whenReady().then(async () => {
         `符号覆盖：${summary.coverage.mappedSymbols}/${summary.coverage.checkedSymbols}，未覆盖 ${summary.coverage.gaps.length}`,
         `空壳判定：${summary.stubCheck === 'passed' ? '通过' : '不通过'}`,
         `失败块：${summary.failedChunks}，不支持：${summary.unsupported}，未分配：${summary.unassigned}`,
+        `目录布局：${options.cjpm ? 'CJPM 草稿（cjpm.toml 未用 cjc/CJPM 验证，结构待消费方确认）' : 'flat（无 CJPM 配置）'}`,
         '',
         '产物是未验证编译的草稿，是否继续导出？',
       ].join('\n');
@@ -292,11 +305,11 @@ void app.whenReady().then(async () => {
       let result;
       if (format === 'dir') {
         await mkdir(choice.filePath);
-        result = await exportReport(model, report, resolve(choice.filePath, 'draft'), signal);
+        result = await exportReport(model, report, resolve(choice.filePath, 'draft'), signal, options);
       } else {
         const stage = await mkdtemp(resolve(await scratchRoot(), 'desktop-export-'));
         const draft = resolve(stage, 'draft');
-        result = await exportReport(model, report, draft, signal);
+        result = await exportReport(model, report, draft, signal, options);
         await writeZip(draft, choice.filePath, signal);
       }
       if (task && workspace) {
@@ -305,7 +318,7 @@ void app.whenReady().then(async () => {
         await workspace.appendEvent(task.taskId, { kind: 'exported', path: choice.filePath, status: result.status });
       }
       status('导出结束：' + result.status);
-      return { path: choice.filePath, status: result.status };
+      return { path: choice.filePath, status: result.status, layout: result.layout };
     } catch (e) {
       status(signal.aborted ? '已取消' : '导出失败');
       throw e;

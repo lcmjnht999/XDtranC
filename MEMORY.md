@@ -4,10 +4,10 @@ Update this after major decisions, completed phases, or bugs that future agents 
 
 ## Current State
 
-- Current task: 批次 E、F 已完成，等待最终验收与提交。
-- Current phase: 2026-11-03 完成 Provider 健壮性（E）与交付收尾（F）：`build`/`e2e`/`pkg` 脚本、Playwright Electron 主旅程、`electron-builder --dir` 打包产物启动通过。
-- Next step: 跑最终全量验收（typecheck/lint/test/eval/e2e），由用户确认后提交；真实 Ollama 验收仍为可选项。
-- Blocked by: 真实 Ollama 验收与外部 Provider 合规确认未完成；不影响 E/F。
+- Current task: 批次 E、F、G 已完成，等待提交。
+- Current phase: 2026-11-03 完成 Provider 健壮性（E）、交付收尾（F）、CJPM 可选布局 + 演示与分发文档（G）：`build`/`e2e`/`pkg` 脚本、Playwright Electron 主旅程、`electron-builder --dir` 打包、`cjpm.toml` 可选生成、三份桌面脚本适配 React UI、演示指南与内网分发文档。
+- Next step: 跑最终全量验收（typecheck/lint/test/eval/e2e + 三个桌面脚本），由用户确认后提交 `bc028d3` 之后的改动。
+- Blocked by: 真实 Ollama 验收未执行（本机未安装 Ollama，见 docs/ollama-acceptance.md）；外部 Provider 合规确认未完成。不影响 E/F/G。
 - 交接文档：docs/handoff-2026-11-03.md（新会话先读此文件；含环境、命令、批次状态、未提交清单、批次 E 计划、硬约束）。
 
 ## 仓库与目录
@@ -54,7 +54,7 @@ Update this after major decisions, completed phases, or bugs that future agents 
 - [x] Core data model（`packages/shared/src/contracts.ts` / `outputSchema.ts` / `errors.ts`）
 - [x] Core MVP flow（import → parse → chunk → convert → export）
 - [x] 评测集与主旅程 E2E（Mock Provider 离线；Playwright Electron，含打包产物用例）
-- [ ] Launch checks（打包已完成 `--dir` 产物并验证启动；内网分发、演示材料未做）
+- [x] Launch checks（打包 `--dir` 产物并验证启动；演示指南与内网分发步骤已写；内网实发未做）
 - 说明：Auth 不在本产品范围内，已从模板移除。
 
 ## 第一片交接（2026-10-29）
@@ -209,3 +209,12 @@ Update this after major decisions, completed phases, or bugs that future agents 
 - CJPM 目录结构仍待消费方确认，未生成；记为 Open Question。
 - 验证：typecheck/lint、80 项 Vitest、eval 10 类、Playwright 2 项全过。未执行 Git 写、删除或发布。
 - 详见 `docs/feature-f-delivery.md`。
+
+## 批次 G 交接（2026-11-03）
+
+- CJPM：用户确认“生成可选 cjpm.toml”。`ExportOptions{cjpm, packageName}` 贯穿 `exportProject`/`exportReport`/`exportArchive`/CLI/桌面 IPC；默认 flat 完全不变，`manifest.layout` 与 `manifest.cjpm` 可观测，包名非法在写盘前拒绝。
+- 桌面 UI 增加“生成 cjpm.toml（实验）”复选框与包名输入；preload 的 `export` 改为 `(format, options)`。
+- 旧脚本修复：`smoke.mjs`、`export-boundary.mjs`、`ollama-e2e.mjs` 已从批次 D 前的 DOM id 改为 React 选择器，并适配“导出目录下再套 draft”的布局与 `.xdtranc/` 工作区。
+- Ollama：离线 fixture 在新 UI 下通过；真实模型未验收（本机未安装 Ollama），runbook 见 `docs/ollama-acceptance.md`。
+- 交付文档：`docs/feature-g-cjpm.md`、`docs/ollama-acceptance.md`、`docs/demo-guide.md`、`docs/distribution.md`、`docs/images/*.png`。
+- 验证：typecheck/lint、全部 Vitest、eval、Playwright 2 项、三个桌面脚本全过。未执行 Git 写、删除或发布。

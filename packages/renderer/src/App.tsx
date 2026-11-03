@@ -20,6 +20,8 @@ export function App() {
   const [activePath, setActivePath] = useState<string | null>(null);
   const [output, setOutput] = useState('');
   const [issues, setIssues] = useState('');
+  const [cjpm, setCjpm] = useState(false);
+  const [packageName, setPackageName] = useState('');
 
   useEffect(() => api.status(setStatus), []);
 
@@ -83,8 +85,8 @@ export function App() {
 
   async function exportAs(format: 'dir' | 'zip') {
     await guard(async () => {
-      const done = await api.export(format);
-      if (done) setStatus(`导出结束：${done.status} → ${done.path}`);
+      const done = await api.export(format, { cjpm, packageName: packageName.trim() || undefined });
+      if (done) setStatus(`导出结束：${done.status}（${done.layout === 'cjpm' ? 'CJPM 草稿' : 'flat'}）→ ${done.path}`);
     });
   }
 
@@ -134,6 +136,14 @@ export function App() {
       </div>
 
       <p role="status"><strong>{status}</strong></p>
+      <div className="toolbar">
+        <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <input type="checkbox" checked={cjpm} onChange={event => setCjpm(event.target.checked)} disabled={busy} />
+          生成 cjpm.toml（实验）
+        </label>
+        {cjpm && <label>包名 <input value={packageName} onChange={event => setPackageName(event.target.value)} placeholder="留空则按输入名派生" disabled={busy} /></label>}
+      </div>
+      <p className="hint">cjpm.toml 只是占位配置，目录结构未经消费方确认，也未用 cjc / CJPM 验证；不勾选时导出保持 flat 布局。</p>
       {error && <pre className="error">{error}</pre>}
 
       {result && (

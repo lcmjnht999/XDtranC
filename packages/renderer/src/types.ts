@@ -70,9 +70,15 @@ export interface RunConfig {
   timeoutMs: number;
 }
 
+export interface ExportOptions {
+  cjpm?: boolean;
+  packageName?: string;
+}
+
 export interface ExportResult {
   path: string;
   status: string;
+  layout?: 'flat' | 'cjpm';
 }
 
 export interface WorkbenchApi {
@@ -80,6 +86,6 @@ export interface WorkbenchApi {
   paste(payload: { path: string; code: string }): Promise<string>;
   run(config: RunConfig): Promise<RunResult>;
   cancel(): Promise<boolean>;
-  export(format: 'dir' | 'zip'): Promise<ExportResult | null>;
+  export(format: 'dir' | 'zip', options?: ExportOptions): Promise<ExportResult | null>;
   status(callback: (text: string) => void): () => void;
 }
