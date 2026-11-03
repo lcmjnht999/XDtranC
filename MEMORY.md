@@ -8,6 +8,7 @@ Update this after major decisions, completed phases, or bugs that future agents 
 - Current phase: 2026-11-03 完成 React 工程迁移、`app://` 协议加载、Monaco 懒加载；typecheck/lint、74 项 Vitest、eval 10 类通过，用户确认界面“没有问题”。
 - Next step: 等用户确认提交 D 后进入批次 E（限流/超时/超长 chunk 的模拟用例），不自动扩范围。
 - Blocked by: 真实 Ollama 验收与外部 Provider 合规确认未完成；不影响批次 E。
+- 交接文档：docs/handoff-2026-11-03.md（新会话先读此文件；含环境、命令、批次状态、未提交清单、批次 E 计划、硬约束）。
 
 ## 仓库与目录
 
