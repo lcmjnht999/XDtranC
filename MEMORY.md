@@ -4,10 +4,10 @@ Update this after major decisions, completed phases, or bugs that future agents 
 
 ## Current State
 
-- Current task: 离线完整性eval入口完成，6类评测符合预期，详见docs/integrity-eval.md。
-- Current phase: 本轮typecheck/lint、51项Vitest和6类eval通过；本轮未重跑Electron。
-- Next step: 待用户批准下一项收口缺口；真实模型仍待服务和模型信息，不自动扩展范围。
-- Blocked by: 真实Ollama服务/模型信息缺失；候选合规与输出项目结构待确认。
+- Current task: 批次 C（工作台能力）已完成并人工验收通过；下一批待规划（React/Monaco 重构、打包分发、自动化 E2E 优先级待用户定）。
+- Current phase: 2026-11-03 完成粘贴临时项目、输入文件树、导出前完整性摘要确认；typecheck/lint、68 项 Vitest、eval 10 类通过，用户手工点通导出确认旅程。
+- Next step: 等用户决定下一步（重构 UI 或补打包/E2E）；不自动扩范围。
+- Blocked by: 真实 Ollama 验收与外部 Provider 合规确认未完成；不影响已完成批次。
 
 ## 仓库与目录
 
@@ -39,7 +39,8 @@ Update this after major decisions, completed phases, or bugs that future agents 
 
 ## Known Issues
 
-- 当前含桌面、ZIP、Mock与Ollama适配；尚缺真实模型验收、持久化/恢复、业务空壳验证、粘贴/文件树/报告摘要等。桌面ZIP源目录边界已修复并回归，详见 docs/export-boundary-fix.md。
+- 当前含桌面、ZIP、Mock与Ollama适配、`.xdtranc` 持久化与断点续跑、符号级覆盖与空壳判定、粘贴临时项目/输入文件树/导出前摘要确认；尚缺 React/Monaco、打包分发与自动化 E2E。桌面ZIP源目录边界已修复并回归，详见 docs/export-boundary-fix.md。
+- 本机 Node 26.13.0：electron install.js 的 extract-zip 会解压不完整（只留 locales），需用 Expand-Archive 解压缓存 zip 并写 path.txt；tsx 有 module.register 弃用警告，不影响运行。详见 docs/stage0-runbook.md。
 - 没有 cjc / CJPM / clang / g++ 也能正常工作，这是设计预期，不是环境故障。
 
 ## Completed
@@ -48,9 +49,9 @@ Update this after major decisions, completed phases, or bugs that future agents 
 - [x] 生成 AGENTS.md、MEMORY.md、REVIEW-CHECKLIST.md、agent_docs/*（6 份核心 + 2 份可选）
 - [x] 生成 Cursor / Copilot 薄适配器
 - [x] 文档移入 `docs/`、补 `.gitignore`、修正 AGENTS.md 仓库状态描述，提交并推送
-- [ ] Initial scaffold（pnpm monorepo + 五个 package 骨架）
-- [ ] Core data model（`packages/shared/src/contracts.ts` / `outputSchema.ts` / `errors.ts`）
-- [ ] Core MVP flow（import → parse → chunk → convert → export）
+- [x] Initial scaffold（pnpm monorepo + 五个 package 骨架）
+- [x] Core data model（`packages/shared/src/contracts.ts` / `outputSchema.ts` / `errors.ts`）
+- [x] Core MVP flow（import → parse → chunk → convert → export）
 - [ ] 评测集与主旅程 E2E（Mock Provider 离线）
 - [ ] Launch checks（打包、内网分发、演示材料）
 - 说明：Auth 不在本产品范围内，已从模板移除。
@@ -140,3 +141,40 @@ Update this after major decisions, completed phases, or bugs that future agents 
 - 获批实现pnpm eval，复用现有契约及引擎，六类离线评测通过；51项Vitest回归及typecheck/lint通过。
 - 正式报告outputs/integrity-eval-jseubj/report.md和report.json；中间数据仅.deepworks/tmp。使用说明docs/integrity-eval.md。
 - 仅结构验收，业务语义、真实模型、编译仍未验证；没有UI改动、新依赖、Git写、删除或外部服务调用。
+
+
+## 阶段 0 交接（2026-11-03）
+
+- 环境：Windows 10 22H2 / Node 26.13.0 / npm 11.20.0 / pnpm 10.30.3 / Electron 39.2.7；依赖 234 包，锁文件与 package.json 未变。
+- 实际检查：typecheck、lint、Vitest 51/51（8 文件）、eval 6/6、build.mjs、Electron 启动（窗口标题 XDtranC 工作台）、samples/hello Mock 导出（status=complete，2/2 文件，0 空文件）。
+- 踩坑：pnpm 10 拦截 electron/esbuild 构建脚本；Node 26 下 electron install.js 的 extract-zip 解压不完整，改用 Expand-Archive 解压缓存 zip 并写 path.txt 解决；tsx 的 module.register 弃用警告可忽略。
+- 导出行为：目标是容器目录，产物落在 `<target>/draft/`；重复使用同一目标会报“目标已存在”。
+- 本轮未改源码；新增 docs/mvp-delivery-workflow.md、docs/stage0-runbook.md 未提交，由用户决定。未执行 Git 写、删除或外部服务调用。
+
+
+## 批次 A 交接（2026-11-03）
+
+- 实现 `.xdtranc` 工作区：`engine/workspace.ts` 新增；`converter.ts` 增加落盘回调与 resume；`main.ts` 接入 checkpoint、重启续跑与导出台账。
+- 验证：typecheck/lint 通过，61/61 Vitest 通过；端到端脚本验证“保存 1/2 块后强杀 → 重开只补剩余 1 块 → complete”，工作区结构完整。
+- 恢复条件：输入指纹一致且 budget=4096；损坏的 conversion 视为未完成重跑；落盘失败抛 PersistenceError 直接中断。
+- 已知限制：UI 无未完成任务入口（批次 C 补）；ZIP 工作区在解压目录；未做 Electron 手工中断旅程。
+- 详见 docs/feature-a-persistence.md。未新增依赖、未调用真实模型、未执行 Git 写、删除或发布。
+
+
+## 批次 B 交接（2026-11-03）
+
+- 实现符号级覆盖：`engine/coverage.ts` 新增；`exporter.ts` 输出 `businessStubCheck` / `coverage` / `lineRetentionTooLow`；`eval.ts` 扩到 10 类。
+- 口径：源业务符号必须 mapped，或在 unsupported 中按文件/行号/名称登记；空文件、纯注释、无声明、行保留率 <10%、任何 chunk 失败均判 failed。
+- 验证：typecheck/lint 通过，68/68 Vitest，eval 10 类全部符合预期；`samples/hello` 真实导出 3/3 符号映射、businessStubCheck=passed。
+- 已知限制：输出侧为正则识别，非仓颉语法解析；operator 符号差异可能误配；语义保留未验证。
+- 详见 docs/feature-b-coverage.md。未新增依赖、未调用真实模型、未执行 Git 写、删除或发布。
+
+
+## 批次 C 交接（2026-11-03）
+
+- 实现工作台三项能力：`project:paste` IPC（单文件、≤512 KB、扩展名白名单、临时目录 `paste-*`）、输入文件树（chunk 归属/失败/不支持/输出路径）、导出前完整性摘要（原生确认框）。
+- 空壳终判抽成 `coverage.ts` 的 `businessStubStatus`，导出清单与界面摘要共用，避免口径分叉。
+- 修复一处顺序问题：确认框原先在保存对话框之后，取消保存会跳过确认；现改为先确认后选目标，且摘要用 `lastSummary ?? buildSummary(...)` 实时兜底。
+- 验证：typecheck/lint 通过，68/68 Vitest，eval 10 类全部符合预期；用户手工完成「粘贴 → 转换 → 文件树 → 导出确认 → 目录导出」旅程。
+- 已知限制：粘贴一次只支持一个文件；文件树不表达 include 依赖边；符号识别仍为正则。
+- 详见 docs/feature-c-workbench.md。未新增依赖、未调用真实模型、未执行 Git 写、删除或发布。

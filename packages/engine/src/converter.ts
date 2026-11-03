@@ -12,17 +12,52 @@ export interface ConversionReport {
   failedChunks: { chunkId: string; attempts: number; issues: string[] }[];
   unassigned: Issue[]; unsupported: Issue[];
 }
+export interface ConversionHooks {
+  onChunkComplete?(chunkId: string, attempts: number, output: ConversionOutput): void | Promise<void>;
+  onChunkFailed?(chunkId: string, attempts: number, issues: string[]): void | Promise<void>;
+}
+/** 落盘失败必须显式中断，不能被当成“某个 chunk 转换失败”后重试或静默吞掉。 */
+export class PersistenceError extends Error {
+  constructor(message: string) { super(message); this.name = 'PersistenceError'; }
+}
+async function callComplete(hook: ConversionHooks['onChunkComplete'], chunkId: string, attempts: number, output: ConversionOutput): Promise<void> {
+  if (!hook) return;
+  try { await hook(chunkId, attempts, output); }
+  catch (error) { throw new PersistenceError(`状态保存失败：${error instanceof Error ? error.message : String(error)}`); }
+}
+async function callFailed(hook: ConversionHooks['onChunkFailed'], chunkId: string, attempts: number, issues: string[]): Promise<void> {
+  if (!hook) return;
+  try { await hook(chunkId, attempts, issues); }
+  catch (error) { throw new PersistenceError(`状态保存失败：${error instanceof Error ? error.message : String(error)}`); }
+}
 export async function convertProject(input: string, provider: LlmProvider, budget = 4096, signal?: AbortSignal) {
   const model = await parseProject(input, signal);
   return convertChunks(model, await chunkModel(model, budget, signal), provider, signal);
 }
-export async function convertChunks(model: ProjectModel, plan: ChunkResult, provider: LlmProvider, signal?: AbortSignal): Promise<ConversionReport> {
+export async function convertChunks(
+  model: ProjectModel,
+  plan: ChunkResult,
+  provider: LlmProvider,
+  signal?: AbortSignal,
+  hooks?: ConversionHooks,
+  resume?: Map<string, ConversionOutput>,
+): Promise<ConversionReport> {
   signal?.throwIfAborted();
   const report: ConversionReport = { simulated: provider.simulated, providerId: provider.id, model: provider.model, status: 'complete', results: [], failedChunks: [], unassigned: plan.unassigned, unsupported: [...plan.unsupported, ...plan.unassigned] };
   const accepted = new Set<string>(); const failed = new Set<string>();
   for (const chunk of plan.chunks) {
     signal?.throwIfAborted(); let attempts = 0; let issues: string[] = [];
     try {
+      const cached = resume?.get(chunk.id);
+      if (cached) {
+        if (cached.unsupported.some(u=>!chunk.files.includes(u.sourcePath))) throw new Error('已保存结果引用当前块之外的文件');
+        if (cached.outputs.some(o=>accepted.has(o.path.normalize('NFC').toLowerCase()))) throw new Error('跨 chunk 输出路径冲突');
+        cached.outputs.forEach(o=>accepted.add(o.path.normalize('NFC').toLowerCase()));
+        report.results.push({ chunkId: chunk.id, attempts: 0, output: cached });
+        report.unsupported.push(...cached.unsupported);
+        await callComplete(hooks?.onChunkComplete, chunk.id, 0, cached);
+        continue;
+      }
       if (chunk.deps.some(d => failed.has(d))) throw new Error('依赖 chunk 转换失败');
       const sources = [];
       for (const path of chunk.files) {
@@ -48,14 +83,20 @@ export async function convertChunks(model: ProjectModel, plan: ChunkResult, prov
           if (output.outputs.some(o=>accepted.has(o.path.normalize('NFC').toLowerCase()))) throw new Error('跨 chunk 输出路径冲突');
           output.outputs.forEach(o=>accepted.add(o.path.normalize('NFC').toLowerCase()));
           report.results.push({ chunkId: chunk.id, attempts, output }); report.unsupported.push(...output.unsupported);
+          await callComplete(hooks?.onChunkComplete, chunk.id, attempts, output);
           issues = []; break;
-        } catch (e) { issues = [e instanceof Error ? e.message : '输出无效']; }
+        } catch (e) {
+          if (e instanceof PersistenceError) throw e;
+          issues = [e instanceof Error ? e.message : '输出无效'];
+        }
       }
       if (issues.length) throw new Error(issues.join('; '));
     } catch (e) {
+      if (e instanceof PersistenceError) throw e;
       signal?.throwIfAborted(); issues = [e instanceof Error ? e.message : '转换失败']; failed.add(chunk.id);
       report.failedChunks.push({ chunkId: chunk.id, attempts, issues });
       report.unsupported.push(...chunk.files.map(sourcePath=>({sourcePath,line:null,reason:issues.join('; ')})));
+      await callFailed(hooks?.onChunkFailed, chunk.id, attempts, issues);
     }
   }
   if (report.failedChunks.length || report.unsupported.length) report.status = 'partial';
