@@ -21,7 +21,7 @@
 | F3 本地Provider | Ollama适配与桌面参数入口；第8/9片记录 | 协议离线验证完成，真实模型转换未验收 |
 | F3 候选池、兜底、上下文收缩 | 当前仅Mock/Ollama；Provider异常直接失败 | 未实现候选OpenAI兼容接入、HTTP退避、超限自动缩块；候选合规/地址未确认，不得擅自外发或自动切换 |
 | F3 仓颉提示规约 | converter.ts:38 单段通用提示 | 尚无设计所述语言规约/映射表节选，需确认目标子集 |
-| F4 目录/ZIP导出 | exporter.ts、archive.ts、main.ts | 已有离线输出；仅src/*.cj与清单/README，没有CJPM配置，项目结构待消费方确认；不要求编译验证 |
+| F4 目录/ZIP导出 | exporter.ts、archive.ts、main.ts | 已有离线输出；仅src/*.cj与清单/README，没有CJPM配置，项目结构待消费方确认；不要求编译验证。2026-11-03 结论：CJPM 不在 MVP（Phase 2），可选实现默认关闭只作圈外预研 |
 | F4 完整性 | exporter.ts:65-69 | 有文件数比、行数比、空文件数、unsupported；业务空壳标记not-verified，不能以空字节数=0证明无业务空壳 |
 | F4 工作台 | main.ts、renderer/index.html | 可选路径/运行/取消/文本预览/导出；缺粘贴临时项目、文件树、完整性报告摘要；原生对话框未人工验收 |
 | 技术栈 | HTML内联脚本/样式、esbuild | 与React/TS/Vite、动态Monaco设计不同；前序批准最小原型不等于正式变更整个设计 |

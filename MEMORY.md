@@ -5,10 +5,11 @@ Update this after major decisions, completed phases, or bugs that future agents 
 ## Current State
 
 - Current task: 批次 E、F、G 已完成，等待提交。
-- Current phase: 2026-11-03 完成 Provider 健壮性（E）、交付收尾（F）、CJPM 可选布局 + 演示与分发文档（G）：`build`/`e2e`/`pkg` 脚本、Playwright Electron 主旅程、`electron-builder --dir` 打包、`cjpm.toml` 可选生成、三份桌面脚本适配 React UI、演示指南与内网分发文档。
-- Next step: 跑最终全量验收（typecheck/lint/test/eval/e2e + 三个桌面脚本），由用户确认后提交 `bc028d3` 之后的改动。
+- Current phase: 2026-11-03 完成 Provider 健壮性（E）、交付收尾（F）；CJPM 可选布局作为**圈外预研**实现（默认关闭，不在 MVP 范围，属 Phase 2）；同时修复旧桌面脚本、补演示与分发文档（G）。`build`/`e2e`/`pkg` 脚本、Playwright Electron 主旅程、`electron-builder --dir` 打包均已验证。
+- Next step: 跑最终全量验收（typecheck/lint/test/eval/e2e + 三个离线桌面脚本），由用户确认后提交 `bc028d3` 之后的改动；真实 Ollama 验收等环境就绪后再跑 `packages/main/ollama-real.mjs`。
 - Blocked by: 真实 Ollama 验收未执行（本机未安装 Ollama，见 docs/ollama-acceptance.md）；外部 Provider 合规确认未完成。不影响 E/F/G。
-- 交接文档：docs/handoff-2026-11-03.md（新会话先读此文件；含环境、命令、批次状态、未提交清单、批次 E 计划、硬约束）。
+- 交接文档：`docs/handoff-prompt-2026-11-05.md`（**优先读**，含完整提示词、现状、剩余工作、硬约束）；`docs/handoff-2026-11-03.md`（环境、命令、批次状态）。
+- 交接原因：原机为 Intel UHD 620 核显，无独立显卡，3B 模型下载约 2 MB/s、推理过慢；真实 Ollama 验收移交性能更好的机器。
 
 ## 仓库与目录
 
@@ -206,13 +207,13 @@ Update this after major decisions, completed phases, or bugs that future agents 
 - `e2e/mvp.spec.ts` 两个用例：开发构建主旅程、`release/win-unpacked/XDtranC.exe` 打包产物主旅程；通过主进程替换 `dialog` 方法驱动原生对话框，仍走真实 IPC、转换与导出。
 - 打包配置 `electron-builder.yml`：`win.target=dir`、`signAndEditExecutable=false`、`asarUnpack: **/*.wasm`；主进程外部依赖（web-tree-sitter / tree-sitter-wasms / yauzl / yazl）已提升为根 dependencies，否则 asar 缺包。
 - 打包产物 `release/win-unpacked/XDtranC.exe` 已实际启动并完成一次 Mock 旅程（2 文件，manifest `status=complete`、`simulated=true`）。
-- CJPM 目录结构仍待消费方确认，未生成；记为 Open Question。
+- CJPM 目录结构**不在 MVP**（TechDesign 明确列为 Phase 2）；批次 G 的可选实现默认关闭，仅作圈外预研，不进入验收。
 - 验证：typecheck/lint、80 项 Vitest、eval 10 类、Playwright 2 项全过。未执行 Git 写、删除或发布。
 - 详见 `docs/feature-f-delivery.md`。
 
 ## 批次 G 交接（2026-11-03）
 
-- CJPM：用户确认“生成可选 cjpm.toml”。`ExportOptions{cjpm, packageName}` 贯穿 `exportProject`/`exportReport`/`exportArchive`/CLI/桌面 IPC；默认 flat 完全不变，`manifest.layout` 与 `manifest.cjpm` 可观测，包名非法在写盘前拒绝。
+- CJPM（**圈外预研，非 MVP 验收项**）：`ExportOptions{cjpm, packageName}` 贯穿 `exportProject`/`exportReport`/`exportArchive`/CLI/桌面 IPC；默认 flat 完全不变，`manifest.layout` 与 `manifest.cjpm` 可观测，包名非法在写盘前拒绝。MVP 只做 C++ → 仓颉 `.cj` 草稿，不需要可构建工程。
 - 桌面 UI 增加“生成 cjpm.toml（实验）”复选框与包名输入；preload 的 `export` 改为 `(format, options)`。
 - 旧脚本修复：`smoke.mjs`、`export-boundary.mjs`、`ollama-e2e.mjs` 已从批次 D 前的 DOM id 改为 React 选择器，并适配“导出目录下再套 draft”的布局与 `.xdtranc/` 工作区。
 - Ollama：离线 fixture 在新 UI 下通过；真实模型未验收（本机未安装 Ollama），runbook 见 `docs/ollama-acceptance.md`。

@@ -150,7 +150,7 @@ pnpm.cmd dev
 ## 9. 批次 F：交付收尾
 
 - 补 `e2e`（Playwright for Electron，Mock Provider 离线跑）、`build`、`pkg` 脚本。
-- CJPM 项目结构：2026-11-03 用户确认为**可选生成** `cjpm.toml`，`src/` 保持平铺，默认导出不变；结构本身仍未用 cjc/CJPM 验证，见 `docs/feature-g-cjpm.md`。
+- CJPM 项目结构：**不在本 MVP 范围**。TechDesign 明确把 CJPM 验证放在 Phase 2；2026-11-03 曾按“可选生成”实现过 `cjpm.toml`，现保留但默认关闭、标注为圈外预研，不进入 MVP 验收，见 `docs/feature-g-cjpm.md`。
 - 同步文档：PRD 修订需用户点头；`MEMORY.md` 的 Completed 勾选与实际一致。
 - 打包产物能启动并完成一次 Mock 旅程。
 
@@ -164,7 +164,7 @@ pnpm.cmd dev
 
 1. React + Monaco 重构是否按批次 D 执行（当前已定：先补功能，最后重构）。
 2. 是否接受向输入项目根写入 `.xdtranc/`（TechDesign 已如此设计）。
-3. CJPM 目录结构是否现在就定（已定：可选生成，默认 flat）。
+3. CJPM 目录结构是否现在就定（已定：**不在 MVP**，属 Phase 2；现有可选实现默认关闭、非验收项）。
 4. 真实 Ollama 是否在收尾后验收（2026-11-03：本机未安装，已交付离线 fixture + runbook，真实模型未执行）。
 5. PRD 是否同步修订。
 

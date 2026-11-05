@@ -1,10 +1,12 @@
-# 批次 G：CJPM 可选布局
+# CJPM 可选布局（圈外预研，非 MVP 验收项）
+
+> **状态：不在 MVP 范围。** TechDesign 明确把 cjc/CJPM 验证放在 Phase 2；本文记录的可选实现默认关闭，只作为后续对接预研，不进入 MVP 验收，也不改变“C++ → 仓颉 `.cj` 草稿 + 出物完整性”的验收口径。
 
 ## 背景
 
-MVP 之前的导出只有 `src/*.cj` + 清单 + README，`export-manifest.json` 的 warnings 里明确写着“无 CJPM 配置”。`docs/mvp-delivery-workflow.md` 把 CJPM 结构列为“待消费方确认，未确认前不生成”。
+MVP 之前的导出只有 `src/*.cj` + 清单 + README，`export-manifest.json` 的 warnings 里明确写着“无 CJPM 配置”。`docs/mvp-delivery-workflow.md` 曾把 CJPM 结构列为“待消费方确认，未确认前不生成”。
 
-本轮由用户确认：**生成可选 `cjpm.toml`，`src/` 保持现有平铺结构，默认不改变导出**。
+2026-11-03 曾按用户要求实现为“可选生成 `cjpm.toml`，`src/` 保持现有平铺结构，默认不改变导出”。随后确认 **MVP 只做 C++ → 仓颉代码转换，不需要可构建的 CJPM 工程**，因此该实现保留但降级为圈外预研。
 
 ## 行为
 

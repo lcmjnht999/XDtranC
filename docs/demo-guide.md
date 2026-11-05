@@ -61,7 +61,9 @@ pnpm run pkg
 
 强调：> 只有 `export-manifest.json` 存在且 `status=complete` 才算导出完成；`EXPORT-INCOMPLETE.json` 是开始标记。
 
-### 6. CJPM 草稿（1 分钟，可选）
+### 6. CJPM 草稿（圈外预研，可跳过）
+
+> 这一节**不在 MVP 范围内**（CJPM 属 Phase 2）。只有在被问到“能不能出工程结构”时才演示，不要把它讲成 MVP 能力。
 
 操作：勾选“生成 cjpm.toml（实验）”后再导出。
 
@@ -81,12 +83,12 @@ pnpm run pkg
 
 ### 8. 收尾（1 分钟）
 
-> 当前可交付的是离线可复现的转换草稿链路；真实模型和 CJPM 结构需要你们提供环境和模板后再验收。
+> 当前可交付的是离线可复现的转换草稿链路；真实模型需要你们提供环境后单独验收。CJPM 工程结构不在 MVP 范围，属 Phase 2。
 
 ## 截图
 
 - `docs/images/workbench-converted.png`：转换完成后的工作台；
-- `docs/images/workbench-exported.png`：勾选 CJPM 并导出完成后的状态。
+- `docs/images/workbench-exported.png`：导出完成后的状态（截图里勾选了圈外 CJPM 选项，仅示意扩展点，不属于 MVP 演示内容）。
 
 ## 常见提问
 
