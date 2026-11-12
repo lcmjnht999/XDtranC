@@ -2,6 +2,7 @@ appId: com.xdtranc.desktop
 productName: XDtranC
 directories:
   output: release
+  buildResources: build
 files:
   - package.json
   - packages/main/dist/**
@@ -12,5 +13,19 @@ npmRebuild: false
 extraMetadata:
   main: packages/main/dist/main.mjs
 win:
-  target: dir
-  signAndEditExecutable: false
+  target:
+    - nsis
+    - dir
+  icon: build/icon.png
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: always
+  createStartMenuShortcut: true
+  shortcutName: XDtranC
+  installerLanguages:
+    - zh_CN
+  language: "2052"
+  artifactName: ${productName}-${version}-setup.${ext}
+  deleteAppDataOnUninstall: false

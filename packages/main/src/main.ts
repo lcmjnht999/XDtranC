@@ -118,6 +118,8 @@ async function loadResume(ws: Workspace, checkpoint: TaskCheckpoint): Promise<Ma
   return cached;
 }
 
+app.setAppUserModelId('com.xdtranc.desktop');
+
 void app.whenReady().then(async () => {
   protocol.handle('app', serveRenderer);
   win = new BrowserWindow({ width: 1100, height: 780, webPreferences: { preload: resolve(base, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true } });

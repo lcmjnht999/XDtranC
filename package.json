@@ -21,6 +21,7 @@
         "build": "node packages/main/build.mjs",
         "e2e": "node packages/main/build.mjs && playwright test",
         "pkg": "electron-builder --dir",
+    "pkg:setup": "electron-builder --win",
         "eval": "tsx packages/engine/eval.ts"
     },
     "devDependencies": {

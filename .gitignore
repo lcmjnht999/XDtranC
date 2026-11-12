@@ -3,7 +3,8 @@ node_modules/
 .pnpm-store/
 dist/
 out/
-build/
+build/*
+!build/icon.png
 release/
 
 # Playwright 产物

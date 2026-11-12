@@ -6,7 +6,8 @@
 
 | 路径 | 说明 |
 |---|---|
-| `release/win-unpacked/XDtranC.exe` | 免安装主程序 |
+| `release/XDtranC-0.1.0-setup.exe` | NSIS 安装包：用户级安装、桌面 + 开始菜单快捷方式 |
+| `release/win-unpacked/XDtranC.exe` | 免安装主程序（调试/便携用） |
 | `release/win-unpacked/resources/app.asar` | 应用与依赖（约 120 MB） |
 | `release/win-unpacked/resources/app.asar.unpacked/` | 解包的 tree-sitter wasm |
 
@@ -15,7 +16,8 @@
 ```powershell
 pnpm install --frozen-lockfile
 pnpm build
-pnpm run pkg
+pnpm run pkg        # 只出免安装目录
+pnpm run pkg:setup  # 出安装包 + 免安装目录
 ```
 
 `release/` 已在 `.gitignore` 中，不进仓库。
@@ -40,9 +42,9 @@ Get-FileHash release\XDtranC-0.1.0-win-x64.zip -Algorithm SHA256
 
 ## 分发步骤
 
-1. 走内网文件通道上传 zip 与 SHA256；
-2. 目标机解压到非系统目录，例如 `D:\Tools\XDtranC`；
-3. 首次启动允许 SmartScreen 的“仍要运行”（未签名，`signAndEditExecutable: false`）；
+1. 走内网文件通道上传 `XDtranC-0.1.0-setup.exe` 与 SHA256；便携场景可上传 `win-unpacked` 压缩包；
+2. 双击安装包，选择安装目录（默认 `%LOCALAPPDATA%\Programs\XDtranC`，用户级，不需要管理员）；
+3. 安装完成会自动创建桌面与开始菜单快捷方式；首次启动允许 SmartScreen 的“仍要运行”（未签名）；
 4. 用 `samples/hello` 跑一次目录转换与导出，确认 `export-manifest.json` 为 `complete`；
 5. 登记目标机 Windows 版本与结果。
 
@@ -50,7 +52,7 @@ Get-FileHash release\XDtranC-0.1.0-win-x64.zip -Algorithm SHA256
 
 - Windows x64；
 - 不需要安装 Node.js、pnpm 或编译工具链；
-- 若使用 Ollama，需单独安装并在 `127.0.0.1:11434` 运行；
+- 云端 Provider 需可解析的网关地址与独立 API Key（见 `docs/cloud-provider.md`）；本地 Ollama 可选；
 - 导出目标不能位于源码目录内，且必须是不存在的新目录。
 
 ## 不要做

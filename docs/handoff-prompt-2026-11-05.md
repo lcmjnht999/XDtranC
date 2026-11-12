@@ -9,7 +9,9 @@
 
 ## 0. 一句话现状
 
-MVP 四项功能已全部实现并通过离线验收（typecheck / lint / 83 项单测 / 10 类 eval / 2 项 Electron E2E / 3 个桌面脚本）。**唯一剩余项是“真实 Ollama 模型验收”**：原开发机是 Intel UHD 620 核显 + 16 GB 内存，无独立显卡，3B 模型下载约 2 MB/s、推理过慢，因此移交到性能更好的机器执行。
+MVP 四项功能已全部实现并通过离线验收（typecheck / lint / 90 项单测 / 10 类 eval / 2 项 Electron E2E / 3 个桌面脚本）。**剩余项只有“云端 Provider 真实验收”**：OpenAI 兼容 Provider 已实现且 7 项单测通过，但 `tokenhub.deepepexios.cn` 在当前网络无法解析，且不读取客户端凭据文件，因此真实请求未执行。
+
+> 2026-11-05 更新：本地 Ollama 验收已取消，不再作为交付项；云端接入见 `docs/cloud-provider.md`。第 6 节“真实 Ollama 验收”仅留作历史参考，不再执行。
 
 CJPM 工程结构**不在 MVP 范围**，属 Phase 2，已有可选实现默认关闭，不要继续做。
 
@@ -109,7 +111,7 @@ pnpm install
 |---|---|---|
 | 类型 | `pnpm typecheck` | 通过 |
 | 静态检查 | `pnpm lint` | 通过 |
-| 单测 | `pnpm test` | 13 个文件、83 项通过 |
+| 单测 | `pnpm test` | 14 个文件、90 项通过 |
 | 评测 | `pnpm eval` | 10 类通过 |
 | 构建 | `pnpm build` | 通过 |
 | E2E | `pnpm e2e` | 2 项通过（开发构建 + 打包产物） |
@@ -279,7 +281,7 @@ git status -sb
 ## 11. 接手检查清单
 
 - [ ] `pnpm install` 成功，`pnpm typecheck` / `pnpm lint` 通过；
-- [ ] `pnpm test` 83 项、`pnpm eval` 10 类、`pnpm e2e` 2 项通过；
+- [ ] `pnpm test` 90 项、`pnpm eval` 10 类、`pnpm e2e` 2 项通过；
 - [ ] `pnpm run pkg` 产出 `XDtranC.exe` 且能启动；
 - [ ] Ollama 服务可达，模型已拉取；
 - [ ] `ollama-real.mjs` 退出码 0，报告 `simulated=false`、`providerId=ollama`；
