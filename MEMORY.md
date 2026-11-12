@@ -8,7 +8,7 @@ Update this after major decisions, completed phases, or bugs that future agents 
 - Current phase: 2026-11-05 在批次 A–G 基础上补齐：NSIS 安装包 + 桌面/开始菜单快捷方式 + 占位图标；OpenAI 兼容云端 Provider（`openai.ts` + 7 项单测）；全量验收 typecheck/lint/**90 项 Vitest**/eval/2 项 E2E 全绿。CJPM 仍为圈外预研。
 - Next step: 用户执行提交与推送；云端真实请求等“可达网络 + 独立 API Key”后再验收（见 `docs/cloud-provider.md`）。
 - Blocked by: 云端真实请求未验收——`tokenhub.deepepexios.cn` 在当前网络无法解析，且不读取客户端凭据文件；不影响 MVP 交付。本地 Ollama 验收同样未执行。
-- 交接文档：`docs/handoff-prompt-2026-11-05.md`（**优先读**，含完整提示词、现状、剩余工作、硬约束）；`docs/handoff-2026-11-03.md`（环境、命令、批次状态）。
+- 交接文档：`docs/handoff-2026-11-05-final.md`（**最新，优先读**，收口状态与剩余工作）；`docs/handoff-prompt-2026-11-05.md`（完整提示词，其 Ollama 节已取消）；`docs/handoff-2026-11-03.md`（环境、命令、批次状态）。
 - 交接原因：原机为 Intel UHD 620 核显，无独立显卡，3B 模型下载约 2 MB/s、推理过慢；真实 Ollama 验收移交性能更好的机器。
 
 ## 仓库与目录
