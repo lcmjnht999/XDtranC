@@ -1,14 +1,21 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { api } from './api';
 import { CodeView } from './components/CodeView';
 import { FileTree } from './components/FileTree';
 import { SummaryBar } from './components/SummaryBar';
+import { validateApiConnection } from '../../shared/src/apiConfig';
+
+type ProviderChoice = 'mock' | 'ollama' | 'openai';
+interface ProviderDraft { model: string; endpoint: string; timeoutText: string }
 
 export function App() {
-  const [provider, setProvider] = useState<'mock' | 'ollama'>('mock');
-  const [model, setModel] = useState('');
-  const [endpoint, setEndpoint] = useState('http://127.0.0.1:11434');
-  const [timeoutText, setTimeoutText] = useState('120000');
+  const [provider, setProvider] = useState<ProviderChoice>('mock');
+  const [drafts, setDrafts] = useState<Record<ProviderChoice, ProviderDraft>>({
+    mock: { model: '', endpoint: 'http://127.0.0.1:11434', timeoutText: '120000' },
+    ollama: { model: '', endpoint: 'http://127.0.0.1:11434', timeoutText: '120000' },
+    openai: { model: '', endpoint: '', timeoutText: '120000' },
+  });
+  const { model, endpoint, timeoutText } = drafts[provider];
   const [selected, setSelected] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
   const [status, setStatus] = useState('就绪');
@@ -22,11 +29,49 @@ export function App() {
   const [issues, setIssues] = useState('');
   const [cjpm, setCjpm] = useState(false);
   const [packageName, setPackageName] = useState('');
+  const keyInput = useRef<HTMLInputElement>(null);
+  const [keyState, setKeyState] = useState<{ endpoint: string; configured: boolean } | null>(null);
+  const keyRevision = useRef(0);
+  const [keyBusy, setKeyBusy] = useState(false);
 
   useEffect(() => api.status(setStatus), []);
+  useEffect(() => {
+    const revision = ++keyRevision.current;
+    setKeyState(null);
+    if (provider === 'openai') {
+      void api.sessionKeyStatus(endpoint).then(state => {
+        if (revision === keyRevision.current) setKeyState({ endpoint, configured: state.configured });
+      }).catch(() => {
+        if (revision === keyRevision.current) setKeyState({ endpoint, configured: false });
+      });
+    }
+    return () => { keyRevision.current++; };
+  }, [provider, endpoint]);
 
-  const busy = running;
+  const keyConfigured = keyState?.endpoint === endpoint && keyState.configured;
+  const apiValidation = validateApiConnection({ model, endpoint, timeoutMs: Number(timeoutText) });
+  const apiIssues = apiValidation.ok ? [] : apiValidation.issues;
+  const validApiEndpoint = !apiIssues.some(issue => issue.field === 'endpoint');
+  const busy = running || keyBusy;
   const ready = result !== null;
+
+  function changeProvider(next: ProviderChoice) {
+    if (next === provider) return;
+    if (keyInput.current) keyInput.current.value = '';
+    keyRevision.current++;
+    setKeyState(null);
+    setError(null);
+    setProvider(next);
+  }
+
+  function updateDraft(patch: Partial<ProviderDraft>) {
+    if (patch.endpoint !== undefined && patch.endpoint !== endpoint) {
+      if (keyInput.current) keyInput.current.value = '';
+      keyRevision.current++;
+      setKeyState(null);
+    }
+    setDrafts(current => ({ ...current, [provider]: { ...current[provider], ...patch } }));
+  }
 
   async function guard(task: () => Promise<void>) {
     setError(null);
@@ -53,6 +98,43 @@ export function App() {
     });
   }
 
+  async function submitKey() {
+    await guard(async () => {
+      const revision = ++keyRevision.current;
+      setKeyBusy(true);
+      try {
+        const pending = api.setSessionKey({ endpoint, apiKey: keyInput.current?.value ?? '' });
+        if (keyInput.current) keyInput.current.value = '';
+        const state = await pending;
+        if (revision === keyRevision.current) setKeyState({ endpoint, configured: state.configured });
+      } catch (error) {
+        // A rejected replacement leaves any existing main-process key intact.
+        try {
+          const state = await api.sessionKeyStatus(endpoint);
+          if (revision === keyRevision.current) setKeyState({ endpoint, configured: state.configured });
+        } catch {
+          if (revision === keyRevision.current) setKeyState(null);
+        }
+        throw error;
+      } finally {
+        if (keyInput.current) keyInput.current.value = '';
+        setKeyBusy(false);
+      }
+    });
+  }
+
+  async function clearKey() {
+    await guard(async () => {
+      const revision = ++keyRevision.current;
+      setKeyBusy(true);
+      if (keyInput.current) keyInput.current.value = '';
+      try {
+        const state = await api.clearSessionKey();
+        if (revision === keyRevision.current) setKeyState({ endpoint, configured: state.configured });
+      } finally { setKeyBusy(false); }
+    });
+  }
+
   async function usePaste() {
     await guard(async () => {
       const picked = await api.paste({ path: pasteName, code: pasteCode });
@@ -64,6 +146,9 @@ export function App() {
 
   async function convert() {
     await guard(async () => {
+      if (provider === 'openai' && !apiValidation.ok) {
+        throw new Error(apiValidation.issues.map(issue => issue.message).join('；'));
+      }
       setRunning(true);
       clearResult();
       try {
@@ -100,17 +185,28 @@ export function App() {
       <div className="toolbar">
         <label>
           转换方式
-          <select value={provider} onChange={event => setProvider(event.target.value === 'ollama' ? 'ollama' : 'mock')} disabled={busy}>
+          <select value={provider} onChange={event => changeProvider(event.target.value === 'openai' ? 'openai' : event.target.value === 'ollama' ? 'ollama' : 'mock')} disabled={busy}>
             <option value="mock">Mock（模拟）</option>
             <option value="ollama">Ollama（本机）</option>
+            <option value="openai">OpenAI 兼容 API（自带服务）</option>
           </select>
         </label>
-        <label>已安装模型 <input value={model} onChange={event => setModel(event.target.value)} placeholder="准确模型名，不会自动下载" disabled={busy} /></label>
-        <label>地址 <input value={endpoint} onChange={event => setEndpoint(event.target.value)} disabled={busy} /></label>
-        <label>超时毫秒 <input type="number" min={1} max={600000} value={timeoutText} onChange={event => setTimeoutText(event.target.value)} disabled={busy} /></label>
+        <label>模型名称 <input value={model} onChange={event => updateDraft({ model: event.target.value })} placeholder={provider === 'openai' ? '填写服务提供方的准确模型 ID' : '准确模型名，不会自动下载'} aria-describedby={provider === 'openai' ? 'api-config-hint' : undefined} aria-invalid={provider === 'openai' && apiIssues.some(issue => issue.field === 'model')} disabled={busy} /></label>
+        <label>地址 <input value={endpoint} onChange={event => updateDraft({ endpoint: event.target.value })} aria-describedby={provider === 'openai' ? 'api-config-hint' : undefined} aria-invalid={provider === 'openai' && !validApiEndpoint} disabled={busy} /></label>
+        <label>超时毫秒 <input type="number" min={1} max={600000} value={timeoutText} onChange={event => updateDraft({ timeoutText: event.target.value })} aria-describedby={provider === 'openai' ? 'api-config-hint' : undefined} aria-invalid={provider === 'openai' && apiIssues.some(issue => issue.field === 'timeoutMs')} disabled={busy} /></label>
       </div>
 
-      <p className="hint">选择 Ollama 后会将当前 chunk 源码及声明上下文发送到指定本机服务；不切云端，不自动回退 Mock。</p>
+      {provider === 'openai' && <>
+        <div className="toolbar">
+          <label>API Key <input ref={keyInput} type="password" autoComplete="off" spellCheck={false} placeholder="输入后提交，仅本次运行有效" disabled={busy} /></label>
+          <button type="button" onClick={submitKey} disabled={busy || !validApiEndpoint}>提交会话密钥</button>
+          <button type="button" onClick={clearKey} disabled={busy}>清除会话密钥</button>
+          <span data-testid="key-state" aria-live="polite">{keyConfigured ? '当前地址已配置会话密钥' : '当前地址未配置会话密钥'}</span>
+        </div>
+        <p id="api-config-hint" className="hint" data-testid="api-config-hint" aria-live="polite">{apiIssues.length ? `开始前请检查：${apiIssues.map(issue => issue.message).join('；')}` : '地址、模型 ID 和超时格式有效；开始转换仍需已提交密钥及源码外发确认。'}</p>
+        <p className="hint">地址填写 OpenAI 兼容 base URL（例如 https://服务地址/v1），模型填写准确 ID。切换转换方式会保留本页填写的地址、模型和超时。密钥仅本次运行有效：提交后清空输入，仅主进程内存保管，绑定完整服务地址，不落盘，退出失效。修改地址会清空未提交的密钥输入。源码外发仍需确认，暂不支持续跑。</p>
+      </>}
+      <p className="hint">Ollama 仅发送到指定本机服务；云端需显式选择与确认，不自动切换 Provider 或回退 Mock。</p>
 
       <div className="toolbar">
         <button type="button" onClick={() => choose('dir')} disabled={busy}>选择目录</button>
@@ -129,8 +225,8 @@ export function App() {
       )}
 
       <div className="toolbar">
-        <button type="button" className="primary" onClick={convert} disabled={busy || !selected}>开始转换</button>
-        <button type="button" onClick={cancel} disabled={!busy}>取消</button>
+        <button type="button" className="primary" onClick={convert} disabled={busy || !selected || (provider === 'openai' && (!keyConfigured || !apiValidation.ok))}>开始转换</button>
+        <button type="button" onClick={cancel} disabled={!running}>取消</button>
         <button type="button" onClick={() => exportAs('dir')} disabled={busy || !ready}>导出目录</button>
         <button type="button" onClick={() => exportAs('zip')} disabled={busy || !ready}>导出 ZIP</button>
       </div>
@@ -148,7 +244,7 @@ export function App() {
 
       {result && (
         <p className="muted">
-          本次结果：{result.report.simulated ? 'Mock 模拟' : `Ollama / ${result.report.model}`} · 未验证编译
+          本次结果：{result.report.simulated ? 'Mock 模拟' : `${result.report.providerId} / ${result.report.model}`} · 未验证编译
         </p>
       )}
       <SummaryBar summary={result?.summary ?? null} />

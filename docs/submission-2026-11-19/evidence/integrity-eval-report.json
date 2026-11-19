@@ -1,0 +1,109 @@
+{
+  "version": 2,
+  "passed": true,
+  "scope": "仅离线结构完整性，不是模型或业务语义验收",
+  "businessSemantics": "structural-only；符号覆盖已判定，语义保留未验证",
+  "compilation": "not-verified",
+  "results": [
+    {
+      "case": "normal",
+      "passed": true,
+      "conversionStatus": "complete",
+      "exportStatus": "complete",
+      "exportedFiles": 2,
+      "businessStubCheck": "passed",
+      "failedChunks": 0,
+      "providerCalls": 2
+    },
+    {
+      "case": "empty",
+      "passed": true,
+      "conversionStatus": "partial",
+      "exportStatus": "failed",
+      "exportedFiles": 0,
+      "businessStubCheck": "failed",
+      "failedChunks": 2,
+      "providerCalls": 6
+    },
+    {
+      "case": "comments",
+      "passed": true,
+      "conversionStatus": "partial",
+      "exportStatus": "failed",
+      "exportedFiles": 0,
+      "businessStubCheck": "failed",
+      "failedChunks": 2,
+      "providerCalls": 6
+    },
+    {
+      "case": "partial",
+      "passed": true,
+      "conversionStatus": "partial",
+      "exportStatus": "partial",
+      "exportedFiles": 1,
+      "businessStubCheck": "failed",
+      "failedChunks": 1,
+      "providerCalls": 4
+    },
+    {
+      "case": "self-check-exhausted",
+      "passed": true,
+      "conversionStatus": "partial",
+      "exportStatus": "failed",
+      "exportedFiles": 0,
+      "businessStubCheck": "failed",
+      "failedChunks": 2,
+      "providerCalls": 6
+    },
+    {
+      "case": "unsupported",
+      "passed": true,
+      "conversionStatus": "partial",
+      "exportStatus": "failed",
+      "exportedFiles": 0,
+      "businessStubCheck": "failed",
+      "failedChunks": 0,
+      "providerCalls": 2
+    },
+    {
+      "case": "todo",
+      "passed": true,
+      "conversionStatus": "partial",
+      "exportStatus": "failed",
+      "exportedFiles": 0,
+      "businessStubCheck": "failed",
+      "failedChunks": 2,
+      "providerCalls": 6
+    },
+    {
+      "case": "header-only",
+      "passed": true,
+      "conversionStatus": "partial",
+      "exportStatus": "partial",
+      "exportedFiles": 1,
+      "businessStubCheck": "failed",
+      "failedChunks": 1,
+      "providerCalls": 4
+    },
+    {
+      "case": "drop-file",
+      "passed": true,
+      "conversionStatus": "partial",
+      "exportStatus": "partial",
+      "exportedFiles": 1,
+      "businessStubCheck": "failed",
+      "failedChunks": 1,
+      "providerCalls": 4
+    },
+    {
+      "case": "low-retention",
+      "passed": true,
+      "conversionStatus": "complete",
+      "exportStatus": "complete",
+      "exportedFiles": 1,
+      "businessStubCheck": "failed",
+      "failedChunks": 0,
+      "providerCalls": 1
+    }
+  ]
+}

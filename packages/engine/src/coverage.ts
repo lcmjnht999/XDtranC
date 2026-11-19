@@ -26,6 +26,7 @@ const nonCallable = new Set(['if', 'for', 'while', 'switch', 'match', 'catch']);
 
 /** 从仓颉草稿中提取可识别的声明名；只做结构识别，不保证语法正确。 */
 export function extractCangjieSymbols(code: string): string[] {
+  code = maskNonCode(code);
   const names: string[] = [];
   for (const match of code.matchAll(declarationPattern)) names.push(match[1]!);
   for (const match of code.matchAll(callablePattern)) {
@@ -44,10 +45,36 @@ export function normalizeSymbol(name: string): string {
   return value.replace(/[^A-Za-z0-9_]/g, '').toLowerCase().replace(/_/g, '');
 }
 
-const stripped = (code: string): string => code
-  .replace(/\/\/[^\n\r]*/g, '')
-  .replace(/\/\*[\s\S]*?\*\//g, '')
-  .trim();
+// Ignore comments and literals; preserve line boundaries for structural scans.
+function maskNonCode(code: string): string {
+  let result = '', i = 0;
+  while (i < code.length) {
+    const start = i;
+    if (code.startsWith('//', i)) {
+      while (i < code.length && code[i] !== '\n') i++;
+    } else if (code.startsWith('/*', i)) {
+      i += 2; let depth = 1;
+      while (i < code.length && depth) {
+        if (code.startsWith('/*', i)) { depth++; i += 2; }
+        else if (code.startsWith('*/', i)) { depth--; i += 2; }
+        else i++;
+      }
+    } else if (code[i] === '"' || code[i] === "'") {
+      const quote = code[i++]!;
+      const triple = code.slice(start, start + 3) === quote.repeat(3);
+      const delimiter = triple ? quote.repeat(3) : quote;
+      if (triple) i += 2;
+      while (i < code.length) {
+        if (code[i] === '\\') { i = Math.min(i + 2, code.length); continue; }
+        if (code.startsWith(delimiter, i)) { i += delimiter.length; break; }
+        i++;
+      }
+    } else { result += code[i++]; continue; }
+    result += code.slice(start, i).replace(/[^\r\n]/g, ' ');
+  }
+  return result;
+}
+const stripped = (code: string): string => maskNonCode(code).trim();
 
 /**
  * 严格符号级覆盖：源文件每个顶层业务声明必须在输出里有同名符号，
@@ -56,13 +83,16 @@ const stripped = (code: string): string => code
 export function analyzeCoverage(model: ProjectModel, report: ConversionReport): CoverageReport {
   const outputs = report.results.flatMap(result => result.output.outputs);
   const outputNames = new Set<string>();
+  const outputTypes = new Set<string>();
   const emptyFiles: string[] = [];
   const stubFiles: string[] = [];
 
   for (const output of outputs) {
     if (!output.code.trim()) { emptyFiles.push(output.path); continue; }
     if (!stripped(output.code)) { stubFiles.push(output.path); continue; }
-    const names = extractCangjieSymbols(output.code);
+    const clean = maskNonCode(output.code);
+    for (const match of clean.matchAll(/\b(?:class|struct)\s+([A-Za-z_]\w*)/g)) outputTypes.add(normalizeSymbol(match[1]!));
+    const names = extractCangjieSymbols(clean);
     for (const name of names) outputNames.add(normalizeSymbol(name));
     if (names.length === 0) stubFiles.push(output.path);
   }
@@ -82,7 +112,7 @@ export function analyzeCoverage(model: ProjectModel, report: ConversionReport): 
   for (const symbol of model.symbols) {
     if (!businessKinds.has(symbol.kind)) continue;
     checkedSymbols++;
-    if (outputNames.has(normalizeSymbol(symbol.name))) { mappedSymbols++; continue; }
+    if ((symbol.kind === 'class_specifier' || symbol.kind === 'struct_specifier' ? outputTypes : outputNames).has(normalizeSymbol(symbol.name))) { mappedSymbols++; continue; }
     const declarations = unsupportedByPath.get(symbol.sourcePath) ?? [];
     const declared = declarations.some(issue =>
       issue.line === null || issue.line === symbol.line || issue.reason.includes(symbol.name),

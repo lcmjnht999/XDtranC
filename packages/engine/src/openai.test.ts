@@ -1,5 +1,5 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { OpenAiCompatibleProvider } from './openai.js';
 import { ProviderError } from './provider.js';
 
@@ -28,6 +28,17 @@ afterEach(async () => {
 const request = { prompt: 'p', sources: [{ path: 'a.cpp', code: 'int x;' }], contextBundle: [], retryIssues: [] };
 
 describe('OpenAiCompatibleProvider', () => {
+  it('double-slash base paths preserve the approved host and secrets stay out of serialized objects', async () => {
+    const fetch = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({ choices: [{ message: { content: 'fixture' } }] })));
+    try {
+      const provider = new OpenAiCompatibleProvider('m', 'fake-path-secret', 'https://approved.invalid//other.invalid/v1', { allowExternal: true });
+      expect(JSON.stringify(provider)).not.toContain('fake-path-secret');
+      await expect(provider.generate(request)).resolves.toBe('fixture');
+      expect(fetch.mock.calls[0][0]).toBe('https://approved.invalid//other.invalid/v1/chat/completions');
+      expect(fetch.mock.calls[0][1]?.redirect).toBe('error');
+    } finally { fetch.mockRestore(); }
+  });
+
   it('解析 choices[0].message.content，并发送 Bearer 鉴权与模型名', async () => {
     let seen = '';
     const base = await listen((req, res, body) => {
@@ -47,6 +58,20 @@ describe('OpenAiCompatibleProvider', () => {
     });
     const provider = new OpenAiCompatibleProvider('m', 'sk', base);
     await expect(provider.generate(request)).rejects.toMatchObject({ name: 'ProviderError', kind: 'rate-limit', retryable: true, retryAfterMs: 3000 });
+  });
+
+  it('redirects cannot forward the key to another service and error bodies are not exposed', async () => {
+    let redirectedRequests = 0;
+    const target = await listen((_req, res) => { redirectedRequests++; res.end('{}'); });
+    const base = await listen((_req, res) => {
+      res.writeHead(307, { location: target + '/chat/completions' });
+      res.end('untrusted-fake-secret');
+    });
+    const provider = new OpenAiCompatibleProvider('m', 'untrusted-fake-secret', base);
+    const error: unknown = await provider.generate(request).catch((error: unknown) => error);
+    expect(error).toBeInstanceOf(ProviderError);
+    expect(String(error)).not.toContain('untrusted-fake-secret');
+    expect(redirectedRequests).toBe(0);
   });
 
   it('401 映射为不可重试的鉴权错误', async () => {

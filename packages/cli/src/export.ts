@@ -1,3 +1,5 @@
+import { OpenAiCompatibleProvider } from '../../engine/src/openai.js';
+import { MockProvider } from '../../engine/src/provider.js';
 import { exportArchive } from '../../engine/src/archive.js';
 
 const args = process.argv.slice(2);
@@ -8,11 +10,11 @@ const out = options.find(o => o.startsWith('--out='))?.slice('--out='.length);
 const budget = options.find(o => o.startsWith('--budget-tokens='))?.split('=')[1];
 const packageName = options.find(o => o.startsWith('--package='))?.slice('--package='.length);
 const cjpm = options.includes('--cjpm');
-const usage = '用法：pnpm export <目录或ZIP> --provider=mock --format=dir|zip --out=<不存在的目标> [--budget-tokens=4096] [--cjpm [--package=<name>]] [--json]';
+const usage = '用法：pnpm export <目录或ZIP> --provider=mock|openai --format=dir|zip --out=<不存在的目标> [--budget-tokens=4096] [--cjpm [--package=<name>]] [--json] [--endpoint=<base-url> --model=<model> --timeout-ms=120000 --allow-external]；密钥：XDTRAN_API_KEY';
 const allowed = options.every(o =>
-  ['--provider=mock', '--format=dir', '--format=zip', '--json', '--cjpm'].includes(o) ||
-  o.startsWith('--out=') || /^--budget-tokens=\d+$/.test(o) || /^--package=.+$/.test(o));
-const valid = Boolean(args[0]) && Boolean(out) && options.includes('--provider=mock') &&
+  ['--provider=mock', '--provider=openai', '--allow-external', '--format=dir', '--format=zip', '--json', '--cjpm'].includes(o) ||
+  /^--(endpoint|model)=.+$/.test(o) || /^--timeout-ms=\d+$/.test(o) || o.startsWith('--out=') || /^--budget-tokens=\d+$/.test(o) || /^--package=.+$/.test(o));
+const valid = Boolean(args[0]) && Boolean(out) && (options.includes('--provider=mock') || options.includes('--provider=openai')) &&
   options.some(o => o === '--format=dir' || o === '--format=zip') && allowed &&
   new Set(options.map(o => o.split('=')[0])).size === options.length &&
   (packageName === undefined || cjpm);
@@ -21,8 +23,14 @@ if (!valid) {
   process.exitCode = 1;
 } else {
   try {
-    const m = await exportArchive(args[0] as string, out as string, options.includes('--format=zip') ? 'zip' : 'dir', budget ? Number(budget) : 4096, controller.signal, { cjpm, packageName });
-    console.log(options.includes('--json') ? JSON.stringify(m, null, 2) : `导出（模拟）：${m.status}\n布局：${m.layout}\n文件：${m.exportedFileCount}\n目标：${out}\n产物是未验证编译的草稿。`);
+    const option = (key: string) => options.find(o => o.startsWith(key + '='))?.slice(key.length + 1);
+    if (options.includes('--provider=mock') && options.some(o => /^--(endpoint|model|timeout-ms)=/.test(o) || o === '--allow-external')) throw new Error('Mock 不接受模型连接或外发参数');
+    if (options.includes('--provider=openai') && (!option('--endpoint') || !option('--model'))) throw new Error('openai 必须指定 endpoint 和 model');
+    const provider = options.includes('--provider=openai')
+      ? new OpenAiCompatibleProvider(option('--model')!, process.env.XDTRAN_API_KEY ?? '', option('--endpoint')!, { allowExternal: options.includes('--allow-external'), timeoutMs: Number(option('--timeout-ms') ?? 120000) })
+      : new MockProvider();
+    const m = await exportArchive(args[0] as string, out as string, options.includes('--format=zip') ? 'zip' : 'dir', budget ? Number(budget) : 4096, controller.signal, { cjpm, packageName }, provider);
+    console.log(options.includes('--json') ? JSON.stringify(m, null, 2) : `导出（${provider.id}）：${m.status}\n布局：${m.layout}\n文件：${m.exportedFileCount}\n目标：${out}\n产物是未验证编译的草稿。`);
     process.exitCode = m.status === 'complete' ? 0 : 2;
   } catch (e) {
     console.error(controller.signal.aborted ? 'CANCELLED: 用户取消；检查目标目录是否留下未完成标记' : String(e));

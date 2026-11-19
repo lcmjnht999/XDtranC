@@ -9,6 +9,7 @@ import { convertChunks, type ConversionHooks, type ConversionReport } from '../.
 import { Workspace, fingerprint, type TaskCheckpoint } from '../../engine/src/workspace.js';
 import { parseConversionOutput, type ConversionOutput } from '../../shared/src/outputSchema.js';
 import { desktopProvider } from './provider-config.js';
+import { SessionKey } from './session-key.js';
 import { importZip, writeZip, scratchRoot, validateExportTarget } from '../../engine/src/archive.js';
 import { exportReport, type ExportOptions } from '../../engine/src/exporter.js';
 import { analyzeCoverage, businessStubStatus, type CoverageReport } from '../../engine/src/coverage.js';
@@ -85,6 +86,8 @@ let report: ConversionReport | undefined;
 let workspace: Workspace | undefined;
 let task: TaskCheckpoint | undefined;
 let lastSummary: WorkbenchSummary | undefined;
+const sessionKey = new SessionKey();
+app.on('before-quit', () => { sessionKey.clear(); active?.abort(); });
 
 const status = (s: string) => win.webContents.send('project:status', s);
 
@@ -144,6 +147,16 @@ void app.whenReady().then(async () => {
 
   register('project:cancel', async () => { active?.abort(); return true; });
 
+  register('provider:key-status', async endpoint => sessionKey.state(endpoint));
+  register('provider:key-set', async payload => {
+    if (active) throw new Error('任务执行中，不能更换密钥');
+    return sessionKey.set(payload);
+  });
+  register('provider:key-clear', async () => {
+    if (active) throw new Error('请先取消任务，再清除密钥');
+    return sessionKey.clear();
+  });
+
   register('project:paste', async payload => {
     if (active) throw new Error('任务执行中');
     const data = payload && typeof payload === 'object' ? payload as Record<string, unknown> : {};
@@ -166,7 +179,20 @@ void app.whenReady().then(async () => {
     model = undefined; report = undefined; task = undefined; workspace = undefined;
     const signal = active.signal;
     try {
-      const provider = desktopProvider(config);
+      const cloudConfig = config && typeof config === 'object' && (config as Record<string, unknown>).provider === 'openai'
+        ? config as Record<string, unknown> : undefined;
+      const provider = cloudConfig ? sessionKey.prepare(config) : desktopProvider(config);
+      if (cloudConfig) {
+        // Validate before displaying an approval dialog; no request is made by construction.
+        const answer = await dialog.showMessageBox({
+          type: 'warning', buttons: ['取消', '确认外发'], defaultId: 0, cancelId: 0,
+          title: '云端源码外发确认',
+          message: '继续前请确认服务已获批准，且已核实不用于训练和数据留存条款。',
+          detail: '目标地址：' + String(cloudConfig.endpoint) + '\n模型：' + String(cloudConfig.model) + '\n输入：' + selected + '\n将发送源码块和声明上下文；重试可能产生费用。API Key 仅在主进程会话内存中保管，退出失效。',
+        });
+        if (answer.response !== 1) throw new Error('已取消云端外发');
+        signal.throwIfAborted();
+      }
       status('解析中');
       const inputKind = selected.toLowerCase().endsWith('.zip') ? 'zip' : 'dir';
       const root = inputKind === 'zip' ? await importZip(selected, signal) : selected;
@@ -183,7 +209,7 @@ void app.whenReady().then(async () => {
 
       let resume: Map<string, ConversionOutput> | undefined;
       const prior = await ws.findIncomplete(inputHash);
-      if (prior && prior.budgetTokens === 4096) {
+      if (prior && provider.id !== 'openai' && prior.provider.id === provider.id && prior.provider.model === provider.model && prior.budgetTokens === 4096) {
         task = prior;
         resume = await loadResume(ws, prior);
         task.stage = 'converting';
@@ -217,7 +243,7 @@ void app.whenReady().then(async () => {
         },
       };
 
-      status(provider.simulated ? 'Mock 转换中' : 'Ollama 转换中');
+      status(provider.simulated ? 'Mock 转换中' : `${provider.id} 转换中`);
       const r = await convertChunks(m, plan, provider, signal, hooks, resume);
 
       const previews: { path: string; code: string }[] = [];
@@ -330,5 +356,5 @@ void app.whenReady().then(async () => {
   });
 
   await win.loadURL('app://xdtranc/index.html');
-  win.on('closed', () => { active?.abort(); app.quit(); });
+  win.on('closed', () => { sessionKey.clear(); active?.abort(); app.quit(); });
 });

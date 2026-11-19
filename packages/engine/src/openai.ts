@@ -1,4 +1,6 @@
 import { ProviderError, type ConversionRequest, type LlmProvider } from './provider.js';
+import { normalizeOpenAiBaseUrl } from '../../shared/src/apiConfig.js';
+export { normalizeOpenAiBaseUrl } from '../../shared/src/apiConfig.js';
 
 const MAX_RETRY_AFTER_MS = 30000;
 const MAX_RESPONSE_BYTES = 4 * 1024 * 1024;
@@ -27,23 +29,19 @@ export class OpenAiCompatibleProvider implements LlmProvider {
   readonly simulated = false;
   private readonly endpoint: string;
   private readonly timeoutMs: number;
+  readonly #apiKey: string;
 
   constructor(
     readonly model: string,
-    private readonly apiKey: string,
+    apiKey: string,
     baseUrl: string,
     options: OpenAiProviderOptions = {},
   ) {
     if (!model.trim() || /\s/.test(model)) throw new Error('必须明确指定模型名，且不能包含空白');
     if (!apiKey.trim()) throw new Error('缺少 API Key');
-    const url = new URL(baseUrl);
+    this.#apiKey = apiKey;
+    const url = new URL(normalizeOpenAiBaseUrl(baseUrl));
     const loopback = ['127.0.0.1', 'localhost', '[::1]'].includes(url.hostname);
-    if (url.protocol !== 'https:' && !(url.protocol === 'http:' && loopback)) {
-      throw new Error('云端 Provider 必须使用 HTTPS；仅本地回环地址允许 HTTP');
-    }
-    if (url.username || url.password || url.search || url.hash) {
-      throw new Error('baseUrl 不允许包含凭据、查询参数或片段');
-    }
     if (!loopback && options.allowExternal !== true) {
       throw new Error('非回环地址需要显式确认外发（allowExternal: true）');
     }
@@ -52,7 +50,9 @@ export class OpenAiCompatibleProvider implements LlmProvider {
       throw new Error('超时必须为 1～600000 毫秒');
     }
     this.timeoutMs = timeoutMs;
-    this.endpoint = new URL(`${url.pathname.replace(/\/+$/, '')}/chat/completions`, url).href;
+    // Assign the pathname so a base path beginning with // cannot replace the approved host.
+    url.pathname = `${url.pathname.replace(/\/+$/, '')}/chat/completions`;
+    this.endpoint = url.href;
   }
 
   async generate(request: ConversionRequest, signal?: AbortSignal): Promise<unknown> {
@@ -70,7 +70,7 @@ export class OpenAiCompatibleProvider implements LlmProvider {
           signal: controller.signal,
           headers: {
             'content-type': 'application/json',
-            authorization: `Bearer ${this.apiKey}`,
+            authorization: `Bearer ${this.#apiKey}`,
           },
           body: JSON.stringify({
             model: this.model,

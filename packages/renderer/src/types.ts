@@ -1,3 +1,5 @@
+import type { SessionKeyInput, SessionKeyState } from '../../shared/src/desktopSession';
+
 export interface PreviewFile {
   path: string;
   code: string;
@@ -47,6 +49,7 @@ export interface ConversionResult {
 }
 
 export interface ConversionReport {
+  providerId: string;
   status: 'complete' | 'partial' | 'failed';
   simulated: boolean;
   model: string;
@@ -64,7 +67,7 @@ export interface RunResult {
 }
 
 export interface RunConfig {
-  provider: 'mock' | 'ollama';
+  provider: 'mock' | 'ollama' | 'openai';
   model: string;
   endpoint: string;
   timeoutMs: number;
@@ -82,6 +85,9 @@ export interface ExportResult {
 }
 
 export interface WorkbenchApi {
+  setSessionKey(payload: SessionKeyInput): Promise<SessionKeyState>;
+  sessionKeyStatus(endpoint: string): Promise<SessionKeyState>;
+  clearSessionKey(): Promise<SessionKeyState>;
   choose(kind: 'dir' | 'zip'): Promise<string | null>;
   paste(payload: { path: string; code: string }): Promise<string>;
   run(config: RunConfig): Promise<RunResult>;

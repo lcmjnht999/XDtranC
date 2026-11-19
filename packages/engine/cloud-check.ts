@@ -7,8 +7,11 @@ function arg(name: string): string | undefined {
   return hit?.slice(name.length + 3);
 }
 
-const baseUrl = arg('base-url') ?? process.env.XDTRAN_BASE_URL ?? 'https://tokenhub.deepepexios.cn/gateway/api/v1';
-const model = arg('model') ?? process.env.XDTRAN_MODEL ?? 'DeepSeek-V4.1-Flash';
+const baseUrl = arg('base-url') ?? process.env.XDTRAN_BASE_URL;
+const model = arg('model') ?? process.env.XDTRAN_MODEL;
+if (!baseUrl || !model) throw new Error('必须显式指定 base-url 和 model');
+const options = process.argv.slice(2);
+if (options.some(v => v !== '--allow-external' && !/^--(base-url|model|input|out|timeout)=.+$/.test(v)) || new Set(options.map(v => v.split('=')[0])).size !== options.length) throw new Error('未知或重复的参数');
 const input = resolve(arg('input') ?? 'samples/hello');
 const out = resolve(arg('out') ?? `.deepworks/tmp/cloud-${Date.now()}`);
 const timeoutMs = Number(arg('timeout') ?? '300000');
@@ -21,7 +24,7 @@ function resolveKey(): string {
   return key;
 }
 
-const provider = new OpenAiCompatibleProvider(model, resolveKey(), baseUrl, { allowExternal: true, timeoutMs });
+const provider = new OpenAiCompatibleProvider(model, resolveKey(), baseUrl, { allowExternal: options.includes('--allow-external'), timeoutMs });
 const started = Date.now();
 const manifest = await exportProject(input, out, provider, 4096);
 

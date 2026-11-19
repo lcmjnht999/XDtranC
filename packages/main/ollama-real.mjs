@@ -1,5 +1,5 @@
 import { _electron as electron } from '@playwright/test';
-import { mkdir, mkdtemp, readFile } from 'node:fs/promises';
+import { access, mkdir, mkdtemp, readFile } from 'node:fs/promises';
 import { resolve, join } from 'node:path';
 import assert from 'node:assert/strict';
 
@@ -9,8 +9,15 @@ const args = process.argv.slice(2);
 const model = args.find(a => a.startsWith('--model='))?.slice('--model='.length);
 const endpoint = args.find(a => a.startsWith('--endpoint='))?.slice('--endpoint='.length) ?? 'http://127.0.0.1:11434';
 const timeoutMs = Number(args.find(a => a.startsWith('--timeout='))?.slice('--timeout='.length) ?? 120000);
+const input = resolve(args.find(a => a.startsWith('--input='))?.slice('--input='.length) ?? 'samples/hello');
 if (!model) {
-  console.error('用法：node packages/main/ollama-real.mjs --model=<ollama list 中的模型名> [--endpoint=http://127.0.0.1:11434] [--timeout=120000]');
+  console.error('用法：node packages/main/ollama-real.mjs --model=<ollama list 中的模型名> [--input=samples/hello] [--endpoint=http://127.0.0.1:11434] [--timeout=120000]');
+  process.exit(1);
+}
+try {
+  await access(input);
+} catch {
+  console.error('输入不存在：' + input);
   process.exit(1);
 }
 if (!/^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/.test(endpoint)) {
@@ -45,17 +52,25 @@ try {
     dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [payload.input] });
     dialog.showMessageBox = async () => ({ response: 0, checkboxChecked: false });
     dialog.showSaveDialog = async () => ({ canceled: false, filePath: payload.output });
-  }, { input: resolve('samples/hello'), output: join(temp, 'draft-out') });
+  }, { input, output: join(temp, 'draft-out') });
   await page.getByRole('button', { name: '选择目录' }).click();
+  const startButton = page.getByRole('button', { name: '开始转换' });
+  // 选择目录后主进程还要读取工作区；偶发较慢时给出明确原因，而不是让点击超时。
+  for (let i = 0; i < 100 && await startButton.isDisabled(); i++) await page.waitForTimeout(100);
+  if (await startButton.isDisabled()) {
+    const uiError = await page.locator('pre.error').count() ? (await page.locator('pre.error').innerText()).trim() : '';
+    console.error('选择输入后仍无法开始转换' + (uiError ? '：' + uiError : '（界面未显示错误）'));
+    process.exit(1);
+  }
   await page.getByLabel('转换方式').selectOption('ollama');
   await page.getByLabel('已安装模型').fill(model);
   await page.getByLabel('地址').fill(endpoint);
   await page.getByLabel('超时毫秒').fill(String(timeoutMs));
-  await page.getByRole('button', { name: '开始转换' }).click();
+  await startButton.click();
   await page.waitForFunction(() => {
     const text = document.querySelector('[role=status]')?.textContent ?? '';
     return text.includes('模型草稿完成') || text.includes('部分完成') || text.includes('失败');
-  }, { timeout: timeoutMs + 60000 });
+  }, undefined, { timeout: timeoutMs + 60000 });
   const status = (await page.getByRole('status').innerText()).trim();
   const issues = await page.locator('pre.issues').count() ? await page.locator('pre.issues').innerText() : '';
   const error = await page.locator('pre.error').count() ? await page.locator('pre.error').innerText() : '';
@@ -71,8 +86,10 @@ try {
   const report = {
     model,
     endpoint,
+    input,
     status,
     elapsedSeconds: elapsed,
+    assessment: { scope: 'pipeline-and-integrity-only', languageCorrectness: 'not-verified', compilation: 'not-verified', businessSemantics: 'not-verified' },
     error: error || null,
     issues: issues || null,
     manifest: manifest && {
@@ -84,6 +101,9 @@ try {
       failedChunks: manifest.failedChunks.length,
       unsupported: manifest.unsupported.length,
       lineRetentionRatio: manifest.lineRetentionRatio,
+      businessStubCheck: manifest.businessStubCheck,
+      coverageStatus: manifest.coverage?.status,
+      lineRetentionTooLow: manifest.lineRetentionTooLow,
     },
     exportTarget: manifest ? join(target, 'draft') : null,
   };
@@ -94,7 +114,7 @@ try {
     assert.equal(manifest.simulated, false);
   }
   if (status.includes('失败') || error) process.exitCode = 1;
-  else if (!manifest || manifest.status !== 'complete') process.exitCode = 2;
+  else if (!manifest || manifest.status !== 'complete' || manifest.businessStubCheck !== 'passed' || manifest.coverage?.status !== 'complete' || manifest.lineRetentionTooLow || manifest.exportedFileCount === 0) process.exitCode = 2;
 } finally {
   await app.close();
 }

@@ -49,3 +49,33 @@ it('CLI JSON 和 0/2/1 退出码',()=>{
   const run=(...args:string[])=>spawnSync(process.execPath,['--import','tsx','packages/cli/src/chunk.ts','samples/hello',...args],{encoding:'utf8',timeout:15000});
   const ok=run('--json'); expect(ok.status).toBe(0); expect(JSON.parse(ok.stdout).chunks.length).toBeGreaterThan(0); expect(run('--budget-tokens=1').status).toBe(2); expect(run('--budget-tokens=0').status).toBe(1); expect(run('--wat').status).toBe(1);
 });
+it('keeps matching cross-directory header and implementation atomic', async () => {
+  const root = await fixture({
+    'include/calculator.hpp': 'struct Calculator { int add(int a, int b); };',
+    'src/calculator.cpp': '#include "../include/calculator.hpp"\nint Calculator::add(int a, int b) { return a + b; }',
+    'app/main.cpp': '#include "../include/calculator.hpp"\nint main() { Calculator c; return c.add(1, 2); }',
+  });
+  const plan = await chunkProject(root);
+  const pair = plan.chunks.find(c => c.files.includes('src/calculator.cpp'))!;
+  expect(pair.files).toContain('include/calculator.hpp');
+  expect(plan.chunks.flatMap(c => c.files).sort()).toEqual(['app/main.cpp', 'include/calculator.hpp', 'src/calculator.cpp']);
+  expect(await chunkProject(root)).toEqual(plan);
+  const small = await chunkProject(root, 20);
+  expect(small.chunks).toHaveLength(0);
+  expect(small.unassigned.map(i => i.sourcePath).sort()).toEqual(['app/main.cpp', 'include/calculator.hpp', 'src/calculator.cpp']);
+});
+
+it('keeps multiple matching implementations atomic without absorbing unrelated callers', async () => {
+  const root = await fixture({
+    'include/calc.hpp': 'struct Calc { int add(); int sub(); };',
+    'one/calc.cpp': '#include "../include/calc.hpp"\nint Calc::add() { return 1; }',
+    'two/calc.cpp': '#include "../include/calc.hpp"\nint Calc::sub() { return 2; }',
+    'app/main.cpp': '#include "../include/calc.hpp"\nint main() { Calc c; return c.add(); }',
+  });
+  const plan = await chunkProject(root);
+  const pair = plan.chunks.find(c => c.files.includes('one/calc.cpp'))!;
+  expect(pair.files.sort()).toEqual(['include/calc.hpp', 'one/calc.cpp', 'two/calc.cpp']);
+  const caller = plan.chunks.find(c => c.files.includes('app/main.cpp'))!;
+  expect(caller.deps).toContain(pair.id);
+  expect(await chunkProject(root)).toEqual(plan);
+});

@@ -1,6 +1,8 @@
 import { appendFile, lstat, mkdir, readFile, rename, readdir, realpath, unlink, writeFile } from 'node:fs/promises';
 import { createHash, randomUUID } from 'node:crypto';
 import { dirname, isAbsolute, relative, resolve, sep } from 'node:path';
+import { platform } from 'node:process';
+import { setTimeout as delay } from 'node:timers/promises';
 import type { ChunkResult, Issue, ProjectModel } from '@xdtranc/shared';
 
 export const WORKSPACE_DIR = '.xdtranc';
@@ -35,6 +37,8 @@ export interface OpenOptions {
 
 const taskIdPattern = /^task-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const chunkIdPattern = /^chunk-\d{4}$/;
+const renameRetryDelaysMs = [50, 100, 200, 400, 800] as const;
+const retryableRenameCodes = new Set(['EPERM', 'EACCES', 'EBUSY']);
 
 const inside = (root: string, target: string): boolean => {
   const rel = relative(root, target);
@@ -123,6 +127,9 @@ export class Workspace {
   }
 
   private async assertSafeParents(target: string): Promise<void> {
+    const root = await lstat(this.dir);
+    if (root.isSymbolicLink()) throw new Error('工作区目录不得是符号链接');
+    if (!root.isDirectory()) throw new Error('工作区路径已被非目录占用');
     const parts = relative(this.dir, dirname(target)).split(sep).filter(Boolean);
     let current = this.dir;
     for (const part of parts) {
@@ -136,15 +143,47 @@ export class Workspace {
 
   async writeJson(rel: string, value: unknown): Promise<void> {
     const target = this.path(rel);
-    await mkdir(dirname(target), { recursive: true });
-    await this.assertSafeParents(target);
+    if (target === this.dir) throw new Error('工作区写入目标必须是文件路径');
     const tmp = `${target}.${process.pid}.${randomUUID()}.tmp`;
+    let temporaryCreated = false;
     try {
-      await writeFile(tmp, JSON.stringify(value, null, 2), 'utf8');
-      await rename(tmp, target);
+      const json = JSON.stringify(value, null, 2);
+      await this.assertSafeParents(target);
+      await mkdir(dirname(target), { recursive: true });
+      await this.assertSafeParents(target);
+      await writeFile(tmp, json, { encoding: 'utf8', flag: 'wx' });
+      temporaryCreated = true;
+      for (let retries = 0; ; retries++) {
+        // Paths may have changed while waiting for a Windows file lock to clear.
+        await this.assertSafeParents(target);
+        const temporary = await lstat(tmp);
+        if (!temporary.isFile() || temporary.isSymbolicLink()) throw new Error('工作区临时文件不是普通文件');
+        const existing = await statOrUndefined(target);
+        if (existing && (!existing.isFile() || existing.isSymbolicLink())) throw new Error('工作区目标不是普通文件');
+        try {
+          await rename(tmp, target);
+          return;
+        } catch (error) {
+          const code = errorCode(error);
+          if (platform !== 'win32' || !code || !retryableRenameCodes.has(code)) throw error;
+          const waitMs = renameRetryDelaysMs[retries];
+          if (waitMs === undefined) {
+            throw new Error(`文件替换失败（${code}，已重试 ${retries} 次）；请关闭占用文件的程序或检查目录权限后重试`, { cause: error });
+          }
+          await delay(waitMs);
+        }
+      }
     } catch (error) {
-      await unlink(tmp).catch(() => undefined);
-      throw new Error(`工作区写入失败（${rel}）：${message(error)}`);
+      if (temporaryCreated) {
+        try {
+          await this.assertSafeParents(target);
+          const temporary = await lstat(tmp);
+          if (temporary.isFile() && !temporary.isSymbolicLink()) await unlink(tmp);
+        } catch {
+          // A changed boundary or locked temporary file is preserved for diagnosis.
+        }
+      }
+      throw new Error(`工作区写入失败（${rel}）：${message(error)}`, { cause: error });
     }
   }
 
@@ -161,8 +200,14 @@ export class Workspace {
   async appendEvent(taskId: string, event: Record<string, unknown>): Promise<void> {
     this.assertTaskId(taskId);
     const target = this.path(`state/${taskId}/events.log.jsonl`);
+    await this.assertSafeParents(target);
     await mkdir(dirname(target), { recursive: true });
     await this.assertSafeParents(target);
+    const existing = await statOrUndefined(target);
+    // Appending follows links and modifies the shared inode, unlike rename replacement.
+    if (existing && (existing.isSymbolicLink() || !existing.isFile() || existing.nlink > 1)) {
+      throw new Error('事件日志目标必须是无链接的普通文件');
+    }
     await appendFile(target, `${JSON.stringify({ at: new Date().toISOString(), ...event })}\n`, 'utf8');
   }
 

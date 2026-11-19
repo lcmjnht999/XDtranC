@@ -1,0 +1,74 @@
+[
+    {
+        "id": "cpp-int",
+        "code": "func add(a: int, b: int): int {\n    return a + b;\n}\n",
+        "source": ".deepworks/tmp/ollama-real-JOvv9A/draft-out/draft/src/add.cj",
+        "model": "qwen2.5-coder:1.5b",
+        "observedProblem": "保留未定义的 int 类型",
+        "expectedInterpretation": "完整性通过不得解释为语言正确性通过",
+        "compilation": "not-verified"
+    },
+    {
+        "id": "cpp-int32",
+        "code": "func add(a: int32_t, b: int32_t): int32_t {\n    return a + b;\n}",
+        "source": ".deepworks/tmp/ollama-real-UVPZAD/draft-out/draft/src/add.cj",
+        "model": "qwen2.5-coder:1.5b",
+        "observedProblem": "保留 C++ int32_t 类型",
+        "expectedInterpretation": "完整性通过不得解释为语言正确性通过",
+        "compilation": "not-verified"
+    },
+    {
+        "id": "mixed-function",
+        "code": "func add(Int32 a, Int32 b) -> Int32 {\n    return a + b;\n}\n",
+        "source": ".deepworks/tmp/ollama-real-pkrpFm/draft-out/draft/src/add.cj",
+        "model": "qwen2.5-coder:1.5b",
+        "observedProblem": "参数使用 类型 名称，返回类型使用箭头",
+        "expectedInterpretation": "完整性通过不得解释为语言正确性通过",
+        "compilation": "not-verified"
+    },
+    {
+        "id": "arrow-syntax-after-prompt-v2",
+        "code": "func add(Int32 a, Int32 b) -> Int32 {\n    return a + b;\n}\n",
+        "source": ".deepworks/tmp/ollama-real-RVrEF6/draft-out/draft/src/add.cj",
+        "model": "qwen2.5-coder:1.5b",
+        "observedProblem": "prompt 已写明“参数采用 名称: 类型，返回类型以冒号引出”，模型仍输出 (类型 名称) 与 -> 返回类型；int32_t 已正确改为 Int32",
+        "expectedInterpretation": "只补规则文字不足以纠正小模型的声明语法，需要可执行的语法模板",
+        "compilation": "not-verified"
+    },
+    {
+        "id": "plain-int-arrow-after-prompt-v2",
+        "code": "func add(Int32 a, Int32 b) -> Int32 {\n    return a + b;\n}\n",
+        "source": ".deepworks/tmp/ollama-real-qjTwSW/draft-out/draft/src/add.cj",
+        "model": "qwen2.5-coder:1.5b",
+        "observedProblem": "普通 int 已被映射为 Int32，但声明仍是 C++/Java 风格",
+        "expectedInterpretation": "类型映射改善不等于声明语法改善",
+        "compilation": "not-verified"
+    },
+    {
+        "id": "header-output-path-without-cj",
+        "code": "{\"path\":\"include/math.hpp\",\"code\":\"#pragma once\\nstruct Calculator { func add(a: Int32, b: Int32): Int32 { return a + b } };\\n\"}",
+        "source": "raw /api/chat probe（未导出：schema 拒绝非 .cj 路径）",
+        "model": "qwen2.5-coder:1.5b",
+        "observedProblem": "同一请求三次重放中，输出路径在 include/math.hpp.cj 与 include/math.hpp 之间漂移；后者被路径校验拒绝，并残留 #pragma once 与 C++ struct",
+        "expectedInterpretation": "完整性校验按预期拦截；模型输出不稳定，不能作为验收通过依据",
+        "compilation": "not-verified"
+    },
+    {
+        "id": "header-declaration-fabricated",
+        "code": "func Calculator: struct Calculator;\nfunc Calculator: int add(int a, int b);\nfunc main(): int {\n  Calculator c;\n  return c.add(1, 2);\n}\n",
+        "source": ".deepworks/tmp/ollama-real-pwjW0q/draft-out/draft/src/main.cj",
+        "model": "qwen2.5-coder:1.5b",
+        "observedProblem": "把声明行拼成伪代码，并编造出 Calculator 结构体声明；跨文件块 coverage 报 Calculator::add 未映射",
+        "expectedInterpretation": "businessStubCheck=failed 时完整性不得判通过",
+        "compilation": "not-verified"
+    },
+    {
+        "id": "struct-flattened-3b",
+        "code": "func Calculator_add(a: Int32, b: Int32): Int32 { return a + b; }\nfunc main(): Int32 { var c: Calculator = Calculator(); return c.add(1, 2); }",
+        "source": ".deepworks/tmp/ollama-real-5cvuXo/draft-out/draft/src/main.cj",
+        "model": "qwen2.5-coder:3b",
+        "observedProblem": "语法已是仓颉风格，但把 struct Calculator 与成员函数压平成自由函数 Calculator_add；main 引用未声明的 Calculator 类型",
+        "expectedInterpretation": "coverage 报 Calculator / Calculator::add 缺口，businessStubCheck=failed，不得因语法像就判通过",
+        "compilation": "not-verified"
+    }
+]

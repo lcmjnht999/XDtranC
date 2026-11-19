@@ -41,7 +41,7 @@ class ConversionFailure extends Error {
   constructor(message: string, readonly attempts: number, readonly providerRetries: number) { super(message); this.name = 'ConversionFailure'; }
 }
 interface RetrySettings extends RetryPolicy { sleep: (ms: number, signal?: AbortSignal) => Promise<void> }
-const BASE_PROMPT = '将当前 C++ chunk 转为仓颉草稿。只返回 conversion JSON，包含 outputs(path/code)、unsupported(sourcePath/line/reason)、selfCheck(passed/issues)、explanation、confidence。不支持项必须报告；不得删除业务逻辑换通过。不得声称编译验证。';
+const BASE_PROMPT = '将当前 C++ chunk 转为仓颉草稿。只返回一个 JSON 对象，不要 Markdown。顶层 kind 必须是字符串 "conversion"；outputs 必须是数组，每项含 path（安全相对路径，以 .cj 结尾）和 code（非空代码）；unsupported 必须是数组，每项含 sourcePath（当前源文件路径）、line（正整数或 null）、reason（非空字符串）；selfCheck 必须是对象，含 passed（布尔值）和 issues（非空字符串的数组，无问题时为空数组）；explanation 必须是非空字符串；confidence 必须是 0 到 1 的数字。outputs 和 unsupported 不得同时为空。selfCheck.passed 为 true 时 issues 必须为空。不支持项必须报告；不得删除业务逻辑换通过。不得声称编译验证。目标是仓颉 Cangjie，不是 C++、Java 或 Kotlin，不能仅改扩展名。仓颉函数声明使用 func 关键字，参数采用 名称: 类型，返回类型在参数列表后，以冒号引出。禁止写成 (类型 参数名) 或 -> 返回类型，这两种是 C++/Java 风格，不是仓颉。语法模板（仅示意，不要照抄标识符）：func 示例名(a: Int32, b: Int32): Int32 { return a + b }。整型宽度必须按源语义选择，无法确定则报告。标准 C++ int32_t（含 std::int32_t）是有符号 32 位整数，仓颉对应类型名为 Int32；不要在目标代码中原样保留 int32_t。该规则不意味着普通 int 总是 32 位，也不代表已验证溢出行为等价。输出不得保留 C++ 的 #include、#pragma、std:: 或 C++ 函数定义语法。保留原始符号名称和业务运算。当前块只有声明而没有实现时，不要编造实现或返回占位常量；无法独立转换的声明或跨文件成员实现必须逐项登记 unsupported，说明源位置及限制。返回前自核查 code 是否确实使用仓颉语法；无法可靠生成时宁可显式报告不支持，不能把 C++ 放入 .cj 文件。';
 function retrySettings(options?: ConversionOptions): RetrySettings {
   const merged = { ...DEFAULT_RETRY_POLICY, ...(options?.retryPolicy ?? {}) };
   for (const [key, value] of Object.entries(merged)) {
@@ -165,16 +165,6 @@ export async function convertChunks(
   for (const chunk of plan.chunks) {
     signal?.throwIfAborted(); let attempts = 0; let providerRetries = 0; let issues: string[] = [];
     try {
-      const cached = resume?.get(chunk.id);
-      if (cached) {
-        if (cached.unsupported.some(u=>!chunk.files.includes(u.sourcePath))) throw new Error('已保存结果引用当前块之外的文件');
-        if (cached.outputs.some(o=>accepted.has(o.path.normalize('NFC').toLowerCase()))) throw new Error('跨 chunk 输出路径冲突');
-        cached.outputs.forEach(o=>accepted.add(o.path.normalize('NFC').toLowerCase()));
-        report.results.push({ chunkId: chunk.id, attempts: 0, output: cached });
-        report.unsupported.push(...cached.unsupported);
-        await callComplete(hooks?.onChunkComplete, chunk.id, 0, cached);
-        continue;
-      }
       if (chunk.deps.some(d => failed.has(d))) throw new Error('依赖 chunk 转换失败');
       const sources = [];
       for (const path of chunk.files) {
@@ -183,6 +173,19 @@ export async function convertChunks(
         const bytes = await readFile(full), baseline = model.files.find(f=>f.path===path);
         if (!baseline || baseline.hash !== createHash('sha256').update(bytes).digest('hex')) throw new Error('源文件已变化，请重新解析');
         sources.push({ path, code: new TextDecoder('utf-8',{fatal:true}).decode(bytes) });
+      }
+      const saved = resume?.get(chunk.id);
+      if (saved) {
+        const cached = parseConversionOutput(saved);
+        if (cached.unsupported.some(u => !chunk.files.includes(u.sourcePath))) throw new Error('已保存结果引用当前块之外的文件');
+        if (!cached.outputs.length && chunk.files.some(f => !cached.unsupported.some(u => u.sourcePath === f))) throw new Error('已保存结果无输出文件未全部登记 unsupported');
+        if (!cached.selfCheck.passed) throw new Error('已保存结果自核查失败');
+        if (cached.outputs.some(o => accepted.has(o.path.normalize('NFC').toLowerCase()))) throw new Error('跨 chunk 输出路径冲突');
+        cached.outputs.forEach(o => accepted.add(o.path.normalize('NFC').toLowerCase()));
+        report.results.push({ chunkId: chunk.id, attempts: 0, output: cached });
+        report.unsupported.push(...cached.unsupported);
+        await callComplete(hooks?.onChunkComplete, chunk.id, 0, cached);
+        continue;
       }
       const oversized = chunk.overBudget === true || chunk.estTokens > plan.budgetTokens;
       if (oversized) {

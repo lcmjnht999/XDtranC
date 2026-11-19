@@ -24,7 +24,7 @@ h2 { margin: 0 0 8px; font-size: 15px; color: #34465c; }
 button { padding: 8px 12px; border: 1px solid #b9c4d0; border-radius: 4px; background: white; cursor: pointer; }
 button:hover:not(:disabled) { background: #eef3f9; }
 button:disabled { color: #93a0ad; cursor: not-allowed; background: #f3f5f8; }
-button.primary { background: #1f5fbf; border-color: #1f5fbf; color: white; }
+button.primary:not(:disabled) { background: #1f5fbf; border-color: #1f5fbf; color: white; }
 button.primary:hover:not(:disabled) { background: #1a4f9f; }
 
 .summary { display: flex; flex-wrap: wrap; gap: 6px 16px; padding: 10px 12px; border-radius: 4px; margin: 12px 0; border: 1px solid #b8cce8; background: #e8f0fb; }

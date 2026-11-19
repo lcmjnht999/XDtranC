@@ -2,11 +2,33 @@
 
 Update this after major decisions, completed phases, or bugs that future agents need to know about. Keep it short. This shared project handoff is separate from a coding tool's private automatic memory.
 
+## 本机最新状态（2026-11-19）
+
+- 结项材料入口：`docs/submission-2026-11-19/README.md`。按用户提供的Final Submission and Assessment整理原PRD功能1–7及增补需求的状态/模块/证据/限制，另列范围变化、六项评审维度、离线演示与问答。原PRD未改；最新UI截图和早期保存截图、十类历史eval摘要以副本随文档保留，阶段差异显式标明。当前仍是HEAD d55ec9a之上的未提交工作区，未上传/正式提交；真实模型、人工语义评审、真实5库、当前安装版与Linux未验收。代码未改，本次仅做文档核对，复用下方有效检查；旧demo-guide已标历史入口。
+- 材料核对：48处本地链接有效，5份副本SHA-256与原件一致，历史评测JSON为10类预期通过；原PRD无diff，diff --check退出0（仅LF/CRLF提示）。未重跑应用测试/构建。
+
+- 继续补齐 API 输入校验与提示：shared/apiConfig.ts 作为页面/主进程同源校验；SessionKey 共用地址校验，适配器共用原 URL 归一化并保留旧导出兼容。地址错误禁止提交密钥；模型/超时/地址无效禁止转换，错误不回显原输入，禁用主按钮灰显。已增加 16 项回归测试。
+- 最新两套 TypeScript、ESLint、19 文件 148 项 Vitest、开发构建与 cloud-e2e.mjs、脚本语法、diff --check 均通过。实际开发版验证无效配置/IPC绕过拒绝零请求、错误密钥替换保留旧密钥，以及原有切换/清除/退出/确认/离线转换导出路径。截图 .deepworks/tmp/cloud-e2e-Nbxaov/invalid-config.png 和 success.png 已查看。无真实 API、Git 写、打包或发布；未重跑 eval；详见 docs/cloud-provider.md §9。下方为先前阶段记录。
+- 用户继续桌面 API 页面配置与“密钥仅本次运行保存”：页面按方式保留本页非敏感参数，切换后恢复 API 地址/模型/超时；切换方式或修改地址清空未提交密码输入，修复旧状态查询覆盖提交/清除结果，替换失败重查主进程存在状态。主进程内存密钥、完整地址绑定、主动清除、退出失效及源码外发确认均保留，不落盘、不读回。
+- 最新实跑：两套 TypeScript、ESLint、18 文件 132 项 Vitest、开发构建、cloud-e2e.mjs、脚本语法及 diff --check 通过；开发版点击切换/提交/清除/退出及原有回环转换导出链路通过，最新截图 .deepworks/tmp/cloud-e2e-frCJ7T/success.png 已查看。使用假密钥、本机模拟，无真实 API/新依赖/Git 写/打包发布，本轮未重跑 eval。说明见 docs/cloud-provider.md §8；下面 126/122/108 项是先前阶段记录。
+- 用户要求先完成文件编辑收尾：补齐事件日志目标的链接/类型校验，防止 append 沿链接修改工作区外文件；新增临时文件重名冲突、日志硬链接/路径链接拒绝、追加失败不重放，共 4 项回归测试。代码及说明已完成；随后两套 TypeScript、ESLint、18 文件 126 项 Vitest及 diff --check 通过。本轮未重跑开发构建/桌面，下面 122 项与桌面记录属于前一补丁版本；UI 未改动。
+- 用户选择继续开发 Windows 工作区保存加固：`workspace.ts` 对 Windows rename 的 EPERM/EACCES/EBUSY 最多重试 5 次（50/100/200/400/800 ms），保留旧目标，每次重验根/父目录/临时文件/目标类型；创建目录前也检查链接，失败仍中断转换。详见 docs/workspace-save-hardening.md。
+- 本轮实跑两套 TypeScript、ESLint、18 文件 122 项 Vitest、开发构建及新增 workspace-save-e2e.mjs，均通过。桌面 Mock 注入两次 EPERM 后恢复、持续占用六次后失败并禁止导出、解除占用后恢复；截图 .deepworks/tmp/workspace-save-e2e-hGHrpZ/success.png 已查看。占用错误通过注入验证，未复现真实系统锁/安全软件来源；长期占用仍报错。本轮未重跑 eval，未调用真实 API、Git 写、打包或发布。用户要求版本暂不上传 GitHub。
+- 已按用户明确授权实现桌面自带 OpenAI 兼容 API：页面 base URL/模型 ID/Key；密码输入提交后立即清空，Key 仅主进程会话内存、绑定规范化完整 base URL、可主动清除、退出失效，无读回接口、不落盘，桌面不再回退环境密钥。CLI 环境密钥行为保留。每次运行仍需主进程源码外发确认，云端续跑仍禁用。
+- 适配器 Key 改为运行时私有字段，并修复双斜杠 base 路径可能改变请求主机的问题；拒绝重定向。保留所有本轮前已有修改。
+- 实跑两套 TypeScript、ESLint、17 文件 108 项 Vitest、10 类离线 eval、开发构建及开发版 Electron 回环 E2E，均通过。E2E 覆盖页面提交/清空、地址绑定、主动清除、环境密钥隔离、退出失效、外发拒绝、目录/ZIP与新工作区无密钥、401错误体不回显、重试/取消/恢复。报告 outputs/integrity-eval-aJV2AJ；已查看截图 .deepworks/tmp/cloud-e2e-PfpnIZ/success.png。
+- 说明及实际命令见 docs/cloud-provider.md。pnpm 入口在本机触发依赖检查后因无 TTY 中止，使用现有本地工具完成检查，未安装依赖；esbuild 沙箱读取拒绝后经批准重跑。一次 E2E Windows rename EPERM，独立重跑通过；测试旧状态等待竞态已修正。大分块/DEP0190 警告仍在。
+- 无真实 API、Git 写、打包、发布或安装版验证；模型质量与编译均未验收。旧设计中的桌面 keyring/文件方案已由本轮会话内存要求覆盖。
+
+## 前次本机状态（2026-11-17）
+
+本轮已完成同名声明/实现跨目录整体切分、云端 CLI/桌面最小接入及外发门禁，100 项单测通过（含类型覆盖、伪声明与续跑校验修复），云端 CLI 目录/ZIP 导出与桌面回环端到端已通过。真实模型与安装验收尚未完成；用户选择暂缓真实调用。优先阅读 docs/progress-2026-11-17.md。下方 11-05 记录为历史状态，不代表当前工作区干净或已提交。
+
 ## Current State
 
-- Current task: MVP 功能与交付收尾完成，等待提交并推送。
+- Current task: 继续本地功能开发；桌面 API 配置、页面参数保留/密钥状态修复与 Windows 工作区保存加固已完成，尚未提交，用户暂不上传 GitHub。
 - Current phase: 2026-11-05 在批次 A–G 基础上补齐：NSIS 安装包 + 桌面/开始菜单快捷方式 + 占位图标；OpenAI 兼容云端 Provider（`openai.ts` + 7 项单测）；全量验收 typecheck/lint/**90 项 Vitest**/eval/2 项 E2E 全绿。CJPM 仍为圈外预研。
-- Next step: 用户执行提交与推送；云端真实请求等“可达网络 + 独立 API Key”后再验收（见 `docs/cloud-provider.md`）。
+- Next step: 后续功能按用户选择推进；本地版本如需提交，由用户本人执行，暂不 push。云端真实请求仍待单独授权（见 `docs/cloud-provider.md`）。
 - Blocked by: 云端真实请求未验收——`tokenhub.deepepexios.cn` 在当前网络无法解析，且不读取客户端凭据文件；不影响 MVP 交付。本地 Ollama 验收同样未执行。
 - 交接文档：`docs/handoff-2026-11-05-final.md`（**最新，优先读**，收口状态与剩余工作）；`docs/handoff-prompt-2026-11-05.md`（完整提示词，其 Ollama 节已取消）；`docs/handoff-2026-11-03.md`（环境、命令、批次状态）。
 - 交接原因：原机为 Intel UHD 620 核显，无独立显卡，3B 模型下载约 2 MB/s、推理过慢；真实 Ollama 验收移交性能更好的机器。

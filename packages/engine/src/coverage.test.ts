@@ -84,3 +84,15 @@ it('normalizeSymbol 处理析构、模板与命名空间', () => {
   expect(normalizeSymbol('std::vector<int>::push_back')).toBe('pushback');
   expect(normalizeSymbol('add(int a, int b)')).toBe('add');
 });
+
+it('does not count flattened functions as preserved source types', () => {
+  const m = model([{ sourcePath: 'include/a.hpp', line: 1, kind: 'struct_specifier', name: 'Calculator' }]);
+  expect(analyzeCoverage(m, report([output('a.cj', 'func Calculator(): Int32 { return 0 }')])).gaps).toHaveLength(1);
+  expect(analyzeCoverage(m, report([output('a.cj', 'class Calculator {}')])).mappedSymbols).toBe(1);
+});
+it('ignores symbols in comments and literals including nested comments', () => {
+  const code = 'func real() { let s = "struct Fake {}"; let u = "https://host" }\n/* outer /* inner */ class Ghost {} */\n// func lost() {}';
+  expect(extractCangjieSymbols(code)).toEqual(['real']);
+  const m = model([{ sourcePath: 'a.cpp', line: 1, kind: 'class_specifier', name: 'Fake' }]);
+  expect(analyzeCoverage(m, report([output('a.cj', code)])).gaps).toHaveLength(1);
+});

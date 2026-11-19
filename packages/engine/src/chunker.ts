@@ -19,6 +19,19 @@ export async function chunkModel(model: ProjectModel, budgetTokens: number, sign
   const result: ChunkResult = { budgetTokens, estimator: 'utf8-bytes-v1 (source + JSON context; comments included)', chunks: [], unassigned: [], unsupported: [...model.unsupported], status: 'complete' };
   const files = [...new Set(model.discoveredFiles ?? model.files.map(f => f.path))].sort();
   const graph = new Map(files.map(f => [f, model.deps.filter(d => d.sourcePath === f && d.kind === 'local' && d.targetPath && files.includes(d.targetPath)).map(d => d.targetPath!).sort()]));
+  // Keep matching declaration/implementation pairs atomic, including include/ + src/ layouts.
+  // Only direct local includes with matching basenames qualify; unrelated headers stay separate.
+  const stem = (file: string) => posix.basename(file).replace(/\.[^.]+$/, '');
+  for (const file of files) {
+    if (!/\.(cpp|cc|cxx|c)$/i.test(file)) continue;
+    for (const dependency of [...graph.get(file)!]) {
+      if (/\.(h|hpp|hh|hxx)$/i.test(dependency) && stem(file) === stem(dependency)) {
+        const edges = graph.get(dependency)!;
+        if (!edges.includes(file)) edges.push(file);
+        edges.sort();
+      }
+    }
+  }
   const sources = new Map<string, string>();
   const failures = new Map<string, string>();
   for (const file of files) {
